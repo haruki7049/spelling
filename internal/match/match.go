@@ -343,6 +343,18 @@ func velocityCost(change int64) int64 {
 	return change * change * VelocityCostNum / (VelocityCostDen * world.One * world.One)
 }
 
+// velocityWriteCost computes the incremental mana cost and new accumulated
+// change for moving dst to target along axis.
+func (d *bodyDevice) velocityWriteCost(axis int, current, target int32) (cost, total int64) {
+	delta := int64(target) - int64(current)
+	if delta < 0 {
+		delta = -delta
+	}
+	total = d.changed[axis] + delta
+	cost = (velocityCost(total) - velocityCost(d.changed[axis])) * int64(d.factor)
+	return cost, total
+}
+
 // writeVelocity writes a velocity (clamped to the speed limit). The cost is
 // the square of the total change written to this axis through this device
 // in the current tick, minus what was already paid this tick, so splitting
@@ -352,12 +364,7 @@ func (d *bodyDevice) writeVelocity(off uint32, axis int, dst *int32, rawV uint32
 		d.changed, d.changedTick = [2]int64{}, d.match.Tick
 	}
 	v := min(max(int32(rawV), -world.MaxSpeed), world.MaxSpeed)
-	delta := int64(v) - int64(*dst)
-	if delta < 0 {
-		delta = -delta
-	}
-	total := d.changed[axis] + delta
-	cost := (velocityCost(total) - velocityCost(d.changed[axis])) * int64(d.factor)
+	cost, total := d.velocityWriteCost(axis, *dst, v)
 	if cost > int64(math.MaxInt32) || !d.match.pay(d.payer, int32(cost)) {
 		return
 	}
