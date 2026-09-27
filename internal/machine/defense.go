@@ -22,25 +22,23 @@ type DefenseEvent struct {
 	Value uint32
 }
 
+func (m *Machine) frontDefenseEvent() DefenseEvent {
+	if len(m.defEvents) == 0 {
+		return DefenseEvent{}
+	}
+	return m.defEvents[0]
+}
+
 func (m *Machine) readDefense(off uint32, _ bool) uint32 {
 	switch off {
 	case DefEventCount:
 		return uint32(len(m.defEvents))
 	case DefEventWho:
-		if len(m.defEvents) == 0 {
-			return 0
-		}
-		return m.defEvents[0].Who
+		return m.frontDefenseEvent().Who
 	case DefEventAddr:
-		if len(m.defEvents) == 0 {
-			return 0
-		}
-		return m.defEvents[0].Addr
+		return m.frontDefenseEvent().Addr
 	case DefEventValue:
-		if len(m.defEvents) == 0 {
-			return 0
-		}
-		return m.defEvents[0].Value
+		return m.frontDefenseEvent().Value
 	case DefOverflow:
 		return boolToU32(m.defOverflow)
 	}
