@@ -23,6 +23,10 @@ const (
 	Gravity  = One / 2 // subtracted from vy every tick
 	Friction = One / 4 // removed from |vx| every tick on the ground
 
+	// MaxSpeed is the largest velocity magnitude on each axis, per tick.
+	// Physics clamps velocities to it, which also rules out overflow.
+	MaxSpeed = 64 * One
+
 	// ManaHoldTicks is how long a value written with mana beats physics
 	// before physics re-derives it (see issue #15).
 	ManaHoldTicks = 20
@@ -67,7 +71,9 @@ func (w *World) Step() {
 }
 
 func (b *Body) step() {
-	b.VY -= Gravity
+	// Clamp before gravity so it cannot overflow, and again after.
+	b.VX, b.VY = limit(b.VX), limit(b.VY)
+	b.VY = limit(b.VY - Gravity)
 	if b.Grounded {
 		switch {
 		case b.VX > Friction:
@@ -106,4 +112,9 @@ func clampAxis(pos, v, max int32, vp *int32) int32 {
 		return max
 	}
 	return int32(p)
+}
+
+// limit clamps a velocity to [-MaxSpeed, MaxSpeed].
+func limit(v int32) int32 {
+	return min(max(v, -MaxSpeed), MaxSpeed)
 }

@@ -81,8 +81,8 @@ Both regions have the same layout: `0x1000_2000` is your body and `0x1000_3000` 
 | --- | --- | --- | --- | --- |
 | `+0x00` | x (left edge) | 16.16 | read-write | 10,000 *(`match.CostOwnPosition`)* |
 | `+0x04` | y (bottom edge) | 16.16 | read-write | 10,000 |
-| `+0x08` | vx, per tick | 16.16 | read-write | 1,000 *(`match.CostOwnMotion`)* |
-| `+0x0C` | vy, per tick | 16.16 | read-write | 1,000 |
+| `+0x08` | vx, per tick (clamped to ±64.0 by physics) | 16.16 | read-write | 1,000 *(`match.CostOwnMotion`)* |
+| `+0x0C` | vy, per tick (clamped to ±64.0 by physics) | 16.16 | read-write | 1,000 |
 | `+0x10` | Facing: 1 = right, -1 = left (a negative write means left) | integer | read-write | 1,000 |
 | `+0x14` | Grounded (0 or 1) | integer | read-only | — |
 | `+0x18` | HP | integer | read-only | — |
@@ -273,10 +273,10 @@ Without `-elf`, the player runs the idle program from [Mana](#7-mana) at address
 - The stage is 1,024 × 576 units. x grows to the right and y grows upward. The floor is y = 0, the walls are x = 0 and x = 1,024, and the ceiling is y = 576 *(`world.Width`, `world.Height`)*.
 - Bodies are 32 × 64 units *(tentative)*. A body's position is its bottom-left corner. Player 0 starts at x = 256 and player 1 at x = 736, on the floor, facing each other.
 - Each tick, for each body:
-  1. Gravity subtracts 0.5 from vy *(tentative, `world.Gravity`)*.
+  1. Velocities are clamped to ±64 units per tick on each axis *(tentative, `world.MaxSpeed`)*. Gravity then subtracts 0.5 from vy *(tentative, `world.Gravity`)*, and vy is clamped again.
   1. On the ground, friction reduces |vx| by 0.25 *(tentative, `world.Friction`)*.
   1. The body moves by its velocity. The walls, floor, and ceiling stop it and zero the velocity on that axis.
   1. Grounded is updated. Facing follows the sign of vx, unless a facing written with mana is still holding.
 - HP starts at 100 *(tentative, `world.MaxHP`)*. Nothing reduces HP yet; damage, winning, and losing are not implemented.
 
-Known behavior at the extremes: writing vy = `-0x8000_0000` (the most negative value) currently wraps around under gravity and launches the body to the ceiling (recorded in `TestMinVelocityIsLaunchedToCeiling`).
+Any velocity can be written, but physics clamps it on the next step, so extreme values cannot overflow or move a body more than 64 units per tick.
