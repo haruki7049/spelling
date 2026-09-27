@@ -2,6 +2,8 @@ package machine
 
 import (
 	"testing"
+
+	"github.com/haruki7049/spelling/internal/asm"
 )
 
 func TestDefenseInfoDefaults(t *testing.T) {
@@ -214,5 +216,151 @@ func TestDefenseInterruptNoHandler(t *testing.T) {
 	}
 	if !m.intEnable {
 		t.Error("intEnable should remain true")
+	}
+}
+
+func TestDefenseInterruptPriorityOverKeyHandler(t *testing.T) {
+	m := newMachine(t, `
+	main:
+		addi s0, s0, 1
+		j main
+	`)
+
+	// Assemble defHandler at 0x100
+	defCode, err := asm.Assemble(`
+		lui t0, 0x10031         # DefenseBase
+		sw zero, 16(t0)         # DefEventPop
+		li a0, 0xdef
+		sw a0, 0x600(zero)      # mark defense handler ran
+		lui t0, 0x10000
+		sw zero, 0x1c(t0)       # SysReturn
+	`, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range defCode {
+		m.RAM.Write(uint32(0x100+4*i), 4, w)
+	}
+
+	// Assemble keyHandler at 0x200
+	keyCode, err := asm.Assemble(`
+		lui t0, 0x10001         # KeyboardBase
+		lw a1, 4(t0)            # KeyNext (pop char)
+		li a0, 0xcafe
+		sw a0, 0x604(zero)      # mark key handler ran
+		lui t0, 0x10000
+		sw zero, 0x1c(t0)       # SysReturn
+	`, 0x200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range keyCode {
+		m.RAM.Write(uint32(0x200+4*i), 4, w)
+	}
+
+	// Configure keyHandler
+	m.Write(SystemBase+SysKeyHandler, 4, 0x200)
+
+	// Configure watch entry 0 pointing to defHandler at 0x100
+	base := WatchBase
+	m.Write(base+WatchStart, 4, 0x1000_2000)
+	m.Write(base+WatchEnd, 4, 0x1000_2020)
+	m.Write(base+WatchFlags, 4, WatchWrite)
+	m.Write(base+WatchHandler, 4, 0x100)
+	m.Write(base+WatchEnabled, 4, 1)
+
+	// Run main program a few steps
+	m.Run(10)
+
+	// Simultaneously enqueue keyboard character and defense event
+	m.Type('A')
+	m.NotifyDefense(1, 0x1000_2008, 0x80000)
+
+	// Step once with fresh budget: defense interrupt must be taken first
+	m.SetBudget(1)
+	if !m.Step() {
+		t.Fatal("Step failed")
+	}
+	if m.CPU.PC != 0x104 { // stepped first instruction at 0x100
+		t.Fatalf("first interrupt PC = %#x, want 0x104 (defHandler)", m.CPU.PC)
+	}
+
+	// Run until defense handler finishes
+	m.Run(10)
+	if got := m.RAM.Read(0x600, 4); got != 0xdef {
+		t.Errorf("RAM[0x600] = %#x, want 0xdef", got)
+	}
+	if got := m.Read(DefenseBase+DefEventCount, 4); got != 0 {
+		t.Errorf("DefEventCount = %d, want 0", got)
+	}
+
+	// Now keyboard interrupt runs on subsequent steps
+	m.Run(10)
+	if got := m.RAM.Read(0x604, 4); got != 0xcafe {
+		t.Errorf("RAM[0x604] = %#x, want 0xcafe", got)
+	}
+	if got := m.Read(KeyboardBase+KeyCount, 4); got != 0 {
+		t.Errorf("KeyCount = %d, want 0", got)
+	}
+}
+
+func TestDefenseInterruptPriorityOverPendingLine(t *testing.T) {
+	m := newMachine(t, `
+	main:
+		addi s0, s0, 1
+		j main
+	`)
+
+	// Assemble defHandler at 0x100
+	defCode, err := asm.Assemble(`
+		lui t0, 0x10031         # DefenseBase
+		sw zero, 16(t0)         # DefEventPop
+		li a0, 0xdef
+		sw a0, 0x600(zero)      # mark defense handler ran
+		lui t0, 0x10000
+		sw zero, 0x1c(t0)       # SysReturn
+	`, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range defCode {
+		m.RAM.Write(uint32(0x100+4*i), 4, w)
+	}
+
+	base := WatchBase
+	m.Write(base+WatchStart, 4, 0x1000_2000)
+	m.Write(base+WatchEnd, 4, 0x1000_2020)
+	m.Write(base+WatchFlags, 4, WatchWrite)
+	m.Write(base+WatchHandler, 4, 0x100)
+	m.Write(base+WatchEnabled, 4, 1)
+
+	m.Run(5)
+
+	// Simultaneously submit a typed line and enqueue a defense event
+	typeString(m, "li a0, 0x123; sw a0, 0x604(zero)\n")
+	m.NotifyDefense(1, 0x1000_2008, 0x80000)
+
+	// Step once with budget: defense interrupt must be taken first
+	m.SetBudget(1)
+	if !m.Step() {
+		t.Fatal("Step failed")
+	}
+	if m.CPU.PC != 0x104 {
+		t.Fatalf("first interrupt PC = %#x, want 0x104 (defHandler)", m.CPU.PC)
+	}
+
+	// Run defHandler to completion (remaining 5 instructions)
+	m.Run(5)
+	if got := m.RAM.Read(0x600, 4); got != 0xdef {
+		t.Errorf("RAM[0x600] = %#x, want 0xdef", got)
+	}
+	if got := m.RAM.Read(0x604, 4); got != 0 {
+		t.Errorf("RAM[0x604] = %#x, want 0 before line execution", got)
+	}
+
+	// Next, line editor interrupt runs
+	m.Run(10)
+	if got := m.RAM.Read(0x604, 4); got != 0x123 {
+		t.Errorf("RAM[0x604] = %#x, want 0x123 after line execution", got)
 	}
 }
