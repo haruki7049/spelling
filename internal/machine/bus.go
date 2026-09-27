@@ -20,6 +20,7 @@ type region struct {
 var regions = []region{
 	{SystemBase, systemSize, (*Machine).readSystem, (*Machine).writeSystem},
 	{KeyboardBase, keyboardSize, (*Machine).readKeyboard, (*Machine).writeKeyboard},
+	{WatchBase, watchSize, (*Machine).readWatch, (*Machine).writeWatch},
 	{AssemblerBase, assemblerSize, (*Machine).readAssembler, (*Machine).writeAssembler},
 }
 
