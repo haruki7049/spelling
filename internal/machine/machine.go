@@ -226,12 +226,25 @@ func (m *Machine) Step() bool {
 	return true
 }
 
+func (m *Machine) defenseHandler() uint32 {
+	if len(m.defEvents) == 0 {
+		return 0
+	}
+	w := m.MatchingWatch(m.defEvents[0].Addr, true)
+	if w == nil {
+		return 0
+	}
+	return w.Handler
+}
+
 func (m *Machine) takeInterrupt() {
 	if !m.intEnable {
 		return
 	}
 	var target uint32
 	switch {
+	case m.defenseHandler() != 0:
+		target = m.defenseHandler()
 	case m.keyHandler != 0 && len(m.keys) > 0:
 		target = m.keyHandler
 	case m.keyHandler == 0 && m.pendingLine != nil:

@@ -192,14 +192,15 @@ Interrupts let typed input run while a program keeps running.
 - **Returning**: any write to System `+0x1C` returns from the interrupt when that instruction completes. The registers, the PC, and the enable flag (set to 1) are restored at once. Register changes made by the handler are therefore discarded; its effects persist through memory writes. A handler may change the saved registers or saved PC to affect the interrupted program (for example, to switch tasks).
 - **Nesting**: interrupts stay disabled inside a handler, so new interrupts wait. A handler may set the enable flag itself. A nested interrupt then overwrites the saved PC and registers, so the handler must copy them to RAM first.
 - **Restart**: an illegal-instruction restart re-enables interrupts and leaves any handler.
-- **Sources** (only the keyboard exists today):
+- **Sources**:
 
 | Source | Pending while | Handler |
 | --- | --- | --- |
+| Defense | A defense event is queued with a matching watch handler | The handler address in the matching watch entry |
 | Keyboard, with a handler | The keyboard buffer is not empty | The address in System `+0x18` |
 | Keyboard, without a handler | A submitted line is waiting | The immediate-code region |
 
-Defense interrupts (watch registration) are planned and will be taken before keyboard interrupts.
+Defense interrupts are taken before keyboard interrupts.
 
 This is the whole return sequence used by the built-in line editor:
 

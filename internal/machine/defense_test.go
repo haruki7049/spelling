@@ -131,3 +131,88 @@ func TestDefenseInfoPopEmpty(t *testing.T) {
 		t.Errorf("count = %d, want 0", got)
 	}
 }
+
+func TestDefenseInterruptDispatch(t *testing.T) {
+	// Main program counts s0, handler reads defense event addr and pops it.
+	m := newMachine(t, `
+	main:
+		addi s0, s0, 1
+		j main
+	handler:
+		lui t0, 0x10031         # DefenseBase (0x1003_1000)
+		lw a0, 8(t0)            # DefEventAddr
+		sw a0, 0x600(zero)      # store event addr to RAM for verification
+		sw zero, 16(t0)         # DefEventPop
+		lui t0, 0x10000         # SystemBase
+		sw zero, 0x1c(t0)       # SysReturn
+	`)
+
+	// Register watch entry 0 on range [0x1000_2000, 0x1000_2020)
+	// 'main' has 2 instructions (8 bytes), so 'handler' starts at 0x08.
+	handlerPC := uint32(8)
+	base := WatchBase
+	m.Write(base+WatchStart, 4, 0x1000_2000)
+	m.Write(base+WatchEnd, 4, 0x1000_2020)
+	m.Write(base+WatchFlags, 4, WatchWrite)
+	m.Write(base+WatchHandler, 4, handlerPC)
+	m.Write(base+WatchEnabled, 4, 1)
+
+	// Run main program a few steps
+	m.Run(10)
+	s0Before := m.CPU.Regs[8]
+
+	// Notify defense event
+	m.NotifyDefense(1, 0x1000_2008, 0x80000)
+
+	// Run next steps to trigger defense interrupt
+	m.Run(10)
+
+	// 1. RAM[0x600] has the event addr (0x1000_2008)
+	if got := m.RAM.Read(0x600, 4); got != 0x1000_2008 {
+		t.Errorf("handler stored event addr = %#x, want 0x1000_2008", got)
+	}
+	// 2. Event was popped, DefEventCount == 0
+	if got := m.Read(DefenseBase+DefEventCount, 4); got != 0 {
+		t.Errorf("DefEventCount = %d, want 0", got)
+	}
+	// 3. SysReturn restored s0 and returned to main
+	if s0After := m.CPU.Regs[8]; s0After <= s0Before {
+		t.Errorf("s0 after = %d, want > %d", s0After, s0Before)
+	}
+	// 4. a0 was restored to 0 (since main had a0 = 0)
+	if m.CPU.Regs[10] != 0 {
+		t.Errorf("a0 = %d, want 0 (restored)", m.CPU.Regs[10])
+	}
+	// 5. Interrupts re-enabled
+	if !m.intEnable {
+		t.Error("intEnable = false, want true after SysReturn")
+	}
+}
+
+func TestDefenseInterruptNoHandler(t *testing.T) {
+	m := newMachine(t, `
+	main:
+		addi s0, s0, 1
+		j main
+	`)
+	// Watch entry has Handler = 0
+	base := WatchBase
+	m.Write(base+WatchStart, 4, 0x1000_2000)
+	m.Write(base+WatchEnd, 4, 0x1000_2020)
+	m.Write(base+WatchFlags, 4, WatchWrite)
+	m.Write(base+WatchHandler, 4, 0)
+	m.Write(base+WatchEnabled, 4, 1)
+
+	m.Run(5)
+
+	m.NotifyDefense(1, 0x1000_2008, 0x80000)
+	m.Run(5)
+
+	// Interrupt should not be taken; event remains in queue
+	if got := m.Read(DefenseBase+DefEventCount, 4); got != 1 {
+		t.Errorf("DefEventCount = %d, want 1", got)
+	}
+	if !m.intEnable {
+		t.Error("intEnable should remain true")
+	}
+}
