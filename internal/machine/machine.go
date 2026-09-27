@@ -192,6 +192,11 @@ func (m *Machine) Step() bool {
 	case !ok:
 		// Illegal instruction: the CPU restarted. Leave any handler.
 		m.intEnable = true
+	case m.CPU.Waiting:
+		// WFI: wait for the rest of this tick. Pending interrupts are taken
+		// when execution resumes next tick.
+		m.CPU.Waiting = false
+		m.remaining = 0
 	case m.returning:
 		m.CPU.Regs = m.savedRegs
 		m.CPU.Regs[0] = 0

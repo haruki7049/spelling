@@ -104,8 +104,8 @@ la a0, t
 nop; ret; mv a0, a1; mv sp, fp
 => 00000013 00008067 00058513 00040113
 ---
-ecall; ebreak; fence
-=> 00000073 00100073 0ff0000f
+ecall; ebreak; fence; wfi
+=> 00000073 00100073 0ff0000f 10500073
 ---
 fence rw, rw
 => 0330000f

@@ -72,7 +72,7 @@ la a0, t
 ---
 nop; ret; mv a0, a1; mv sp, fp
 ---
-ecall; ebreak; fence
+ecall; ebreak; fence; wfi
 ---
 fence rw, rw
 ---

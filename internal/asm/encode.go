@@ -73,6 +73,7 @@ func init() {
 		"fence":  encFence,
 		"ecall":  fixed(0x00000073),
 		"ebreak": fixed(0x00100073),
+		"wfi":    fixed(0x10500073),
 
 		// Pseudo-instructions.
 		"nop":  fixed(encI(0, 0, 0b000, 0, opImm)),

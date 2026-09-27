@@ -5,6 +5,7 @@
 //   - An illegal instruction halts the CPU and restarts it: PC is set to the
 //     entry point and registers are cleared, while memory is kept.
 //   - ECALL, EBREAK, and FENCE are no-ops.
+//   - WFI (privileged spec) sets Waiting; the owner ends the tick early.
 //   - Misaligned loads, stores, and instruction fetches are allowed.
 //   - Unmapped accesses are handled by the Bus (RAM reads 0 and ignores writes).
 package vm
@@ -24,6 +25,10 @@ const (
 	opSystem  = 0b1110011
 )
 
+// instWFI is WFI (wait for interrupt) from the RISC-V privileged spec, the
+// only instruction supported outside RV32I.
+const instWFI = 0x10500073
+
 // CPU is a single RV32I hart.
 type CPU struct {
 	// Regs holds x0-x31. x0 always reads as zero.
@@ -32,6 +37,9 @@ type CPU struct {
 	// Entry is the address the CPU restarts from after an illegal instruction.
 	Entry uint32
 	Bus   Bus
+	// Waiting is set by WFI. The owner of the CPU decides how long to wait
+	// and clears it.
+	Waiting bool
 }
 
 // NewCPU returns a CPU that starts executing at entry.
@@ -195,6 +203,10 @@ func (c *CPU) execute(inst uint32) bool {
 			return false
 		}
 	case opSystem:
+		if inst == instWFI {
+			c.Waiting = true
+			break
+		}
 		// ECALL (imm 0) and EBREAK (imm 1) are no-ops.
 		if inst&^(1<<20) != opSystem {
 			return false
