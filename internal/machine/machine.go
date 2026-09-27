@@ -17,6 +17,15 @@
 //	  +0x00  count                   characters in the buffer, read-only
 //	  +0x04  next                    reading pops a character (0 if empty)
 //	  +0x08  overflow                1 after input was dropped; write 0 to clear
+//	0x1003_0000  Watch registration
+//	  +0x00..+0x7c  4 entries of 0x20 bytes (start, end, flags, handler, enabled, policy)
+//	0x1003_1000  Defense info region
+//	  +0x00  count                   events in queue, read-only
+//	  +0x04  who                     writer player ID for front event, read-only
+//	  +0x08  addr                    target address for front event, read-only
+//	  +0x0c  value                   written value for front event, read-only
+//	  +0x10  pop                     any write pops the front event
+//	  +0x14  overflow                1 after event dropped; write 0 to clear
 //	0x1005_0000  Built-in assembler window
 //	  +0x00  source address          text in RAM
 //	  +0x04  source length           bytes, at most MaxAssemblerSource
@@ -140,6 +149,9 @@ type Machine struct {
 	asmStatus, asmOutputLen, asmErrorLine            uint32
 
 	Watches [WatchEntries]WatchEntry
+
+	defEvents   []DefenseEvent
+	defOverflow bool
 
 	devices []region
 }
