@@ -101,3 +101,23 @@ func TestFrictionDoesNotOverflowVelocity(t *testing.T) {
 		t.Errorf("x %d vx %d: want pushed into the left wall", b.X, b.VX)
 	}
 }
+
+// Regression (current behavior, not a decision): physics sets facing from
+// the sign of vx every tick, so a facing written while moving is overwritten
+// on the next step. Facing only sticks while vx is 0.
+func TestFacingFollowsVelocity(t *testing.T) {
+	w := New()
+	w.Bodies[0].VX = 4 * One
+	w.Bodies[0].Facing = -1
+	w.Step()
+	if f := w.Bodies[0].Facing; f != 1 {
+		t.Errorf("facing = %d, current behavior overwrites it with the direction of vx (1)", f)
+	}
+
+	w = New()
+	w.Bodies[0].Facing = -1 // standing still
+	w.Step()
+	if f := w.Bodies[0].Facing; f != -1 {
+		t.Errorf("facing = %d, want -1 kept while vx is 0", f)
+	}
+}

@@ -1,6 +1,6 @@
 # Spelling
 
-A 2D versus game where you *spell* out incantations on the keyboard. The world runs on the machine code of a virtual RISC-V CPU called Idea: fireballs, defenses, and even movement are reads and writes to memory. The design is tracked in [issue #15](https://github.com/haruki7049/spelling/issues/15).
+A 2D versus game where you *spell* out incantations on the keyboard. The world runs on the machine code of a virtual RISC-V CPU called Idea: fireballs, defenses, and even movement are reads and writes to memory. The design is tracked in [issue #15](https://github.com/haruki7049/spelling/issues/15). The machine players program is specified in [docs/spec.md](docs/spec.md).
 
 This is an early playable version: you can move your character by typing Idea, and spells cost mana. Damage and winning are not implemented yet.
 

@@ -2,6 +2,8 @@ package game
 
 import (
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -75,5 +77,18 @@ func TestManaText(t *testing.T) {
 	}
 	if got := manaText(world.Body{Depleted: true}); got != "mana DEPLETED" {
 		t.Errorf("manaText = %q", got)
+	}
+}
+
+// The spec says its first examples are the ones shown in the game.
+func TestExamplesAreInSpec(t *testing.T) {
+	spec, err := os.ReadFile("../../docs/spec.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range examples {
+		if !strings.Contains(string(spec), e.spell) {
+			t.Errorf("docs/spec.md does not contain the example %q", e.spell)
+		}
 	}
 }
