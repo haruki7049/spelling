@@ -12,6 +12,9 @@ package world
 // One is 1.0 in 16.16 fixed-point.
 const One = 1 << 16
 
+// NumPlayers is the number of players in a match.
+const NumPlayers = 2
+
 // Stage and body constants.
 const (
 	Width      = 1024 * One
@@ -56,7 +59,7 @@ type Body struct {
 // World holds both bodies. Index 0 starts on the left facing right, and
 // index 1 on the right facing left.
 type World struct {
-	Bodies [2]Body
+	Bodies [NumPlayers]Body
 }
 
 // New returns a world with both bodies standing on the floor.
@@ -79,7 +82,7 @@ func (w *World) Step() {
 	for i := range w.Bodies {
 		w.Bodies[i].accelerate()
 	}
-	var start [2]Body
+	var start [NumPlayers]Body
 	copy(start[:], w.Bodies[:])
 	a, b := &w.Bodies[0], &w.Bodies[1]
 	a.Grounded, b.Grounded = false, false

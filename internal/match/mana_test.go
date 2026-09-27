@@ -156,7 +156,7 @@ func TestDepletion(t *testing.T) {
 
 func TestMoreManaGoesFirst(t *testing.T) {
 	flips := 0
-	m, err := New([2][]byte{}, func() bool { flips++; return true })
+	m, err := New([world.NumPlayers][]byte{}, func() bool { flips++; return true })
 	if err != nil {
 		t.Fatal(err)
 	}

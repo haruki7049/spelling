@@ -10,7 +10,7 @@ import (
 func newMatch(t *testing.T) *Match {
 	t.Helper()
 	flip := false
-	m, err := New([2][]byte{}, func() bool { flip = !flip; return flip })
+	m, err := New([world.NumPlayers][]byte{}, func() bool { flip = !flip; return flip })
 	if err != nil {
 		t.Fatal(err)
 	}
