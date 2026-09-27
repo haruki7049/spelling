@@ -5,6 +5,7 @@ import (
 
 	"github.com/haruki7049/spelling/internal/asm"
 	"github.com/haruki7049/spelling/internal/machine"
+	"github.com/haruki7049/spelling/internal/world"
 )
 
 // load assembles src into player i's RAM at 0 and restarts the CPU there.
@@ -206,5 +207,43 @@ func TestAssemblerWindowCostsMana(t *testing.T) {
 	mc.Write(machine.AssemblerBase+machine.AsmCommand, 4, 1)
 	if got := before - m.World.Bodies[0].Mana; got != CostAssembler {
 		t.Errorf("assembler call cost %d, want %d", got, CostAssembler)
+	}
+}
+
+func TestFacingWriteHolds(t *testing.T) {
+	m := newMatch(t)
+	// Run right, then face left while still moving.
+	load(t, m, 0, "lui t0, 0x10002; li t1, 0x100000; sw t1, 8(t0); li t1, -1; sw t1, 16(t0); stay: wfi; j stay")
+	for i := range world.ManaHoldTicks {
+		m.Step()
+		if f := m.World.Bodies[0].Facing; f != -1 {
+			t.Fatalf("tick %d: facing = %d, want the paid write (-1) held", i+1, f)
+		}
+	}
+	m.Step()
+	if f := m.World.Bodies[0].Facing; f != 1 {
+		t.Errorf("facing = %d after the hold, want physics (1) again", f)
+	}
+}
+
+func TestFacingRewriteRestartsHold(t *testing.T) {
+	m := newMatch(t)
+	b := &m.World.Bodies[0]
+	b.VX = 0x100000
+	face := func() {
+		typeLine(m, 0, "lui t0, 0x10002; li t1, -1; sw t1, 16(t0)")
+	}
+	face()
+	for range world.ManaHoldTicks / 2 {
+		m.Step()
+	}
+	b.VX = 0x100000
+	face() // restart the hold halfway
+	for i := range world.ManaHoldTicks {
+		b.VX = 0x100000
+		m.Step()
+		if b.Facing != -1 {
+			t.Fatalf("tick %d after the rewrite: facing = %d, want held", i+1, b.Facing)
+		}
 	}
 }
