@@ -135,3 +135,54 @@ func TestOpponentWritePositionRegistersDefense(t *testing.T) {
 		t.Errorf("body X = %d, want %d", got, newX)
 	}
 }
+
+// TestManaChargedOnDeniedDefenseWrites records the current behavior where mana
+// spent on a write is not refunded when the write is denied by defense
+// (e.g. when the defense event queue overflows under PolicyDeny).
+//
+// NOTE: This records current behavior and is not a decided design choice.
+func TestManaChargedOnDeniedDefenseWrites(t *testing.T) {
+	t.Run("velocity", func(t *testing.T) {
+		m := newMatch(t)
+		configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+		for i := range machine.DefQueueCap {
+			if !m.Machines[1].NotifyDefense(0, OwnBodyBase, uint32(i)) {
+				t.Fatalf("fill event %d failed", i)
+			}
+		}
+
+		initialMana := m.World.Bodies[0].Mana
+		targetVX := uint32(10 * world.One)
+		m.Machines[0].Write(OpponentBodyBase+BodyVX, 4, targetVX)
+
+		if got := m.World.Bodies[1].VX; got != 0 {
+			t.Errorf("opponent VX = %d, want 0 (denied)", got)
+		}
+		if m.World.Bodies[0].Mana >= initialMana {
+			t.Errorf("mana = %d, want < %d (mana deducted despite write denied)", m.World.Bodies[0].Mana, initialMana)
+		}
+	})
+
+	t.Run("position", func(t *testing.T) {
+		m := newMatch(t)
+		configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+		for i := range machine.DefQueueCap {
+			if !m.Machines[1].NotifyDefense(0, OwnBodyBase, uint32(i)) {
+				t.Fatalf("fill event %d failed", i)
+			}
+		}
+
+		initialMana := m.World.Bodies[0].Mana
+		initialX := m.World.Bodies[1].X
+		m.Machines[0].Write(OpponentBodyBase+BodyX, 4, uint32(300*world.One))
+
+		if got := m.World.Bodies[1].X; got != initialX {
+			t.Errorf("opponent X = %d, want %d (denied)", got, initialX)
+		}
+		if m.World.Bodies[0].Mana >= initialMana {
+			t.Errorf("mana = %d, want < %d (mana deducted despite write denied)", m.World.Bodies[0].Mana, initialMana)
+		}
+	})
+}
