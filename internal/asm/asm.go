@@ -16,6 +16,7 @@
 //
 // Anything accepted here is also accepted by LLVM's RISC-V assembler with
 // the same meaning, so typed code can be moved to an external toolchain.
+//   - wfi (from the RISC-V privileged spec) is also supported.
 //   - Pseudo-instructions: nop, li, la, mv, j, call, ret, beqz, bnez.
 //
 // Directives (.section, .word, ...) and relocations are not supported;

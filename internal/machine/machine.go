@@ -179,6 +179,11 @@ func (m *Machine) SetBudget(budget int) {
 	m.remaining = budget
 }
 
+// Remaining returns the number of instructions left in the current tick.
+func (m *Machine) Remaining() int {
+	return m.remaining
+}
+
 // Step executes one instruction of the current tick's budget, taking a
 // pending interrupt first. It returns false once the budget is used up.
 func (m *Machine) Step() bool {
@@ -192,6 +197,11 @@ func (m *Machine) Step() bool {
 	case !ok:
 		// Illegal instruction: the CPU restarted. Leave any handler.
 		m.intEnable = true
+	case m.CPU.Waiting:
+		// WFI: wait for the rest of this tick. Pending interrupts are taken
+		// when execution resumes next tick.
+		m.CPU.Waiting = false
+		m.remaining = 0
 	case m.returning:
 		m.CPU.Regs = m.savedRegs
 		m.CPU.Regs[0] = 0

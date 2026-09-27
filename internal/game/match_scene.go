@@ -139,9 +139,9 @@ func (s *MatchScene) Draw(screen *ebiten.Image) {
 	}
 
 	me, opp := s.match.World.Bodies[0], s.match.World.Bodies[1]
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("You  HP %d  x %.1f y %.1f  vx %.2f vy %.2f",
-		me.HP, fixed(me.X), fixed(me.Y), fixed(me.VX), fixed(me.VY)), 8, 8)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Opponent  HP %d", opp.HP), 8, 24)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("You       HP %d  %s  x %.1f y %.1f  vx %.2f vy %.2f",
+		me.HP, manaText(me), fixed(me.X), fixed(me.Y), fixed(me.VX), fixed(me.VY)), 8, 8)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Opponent  HP %d  %s", opp.HP, manaText(opp)), 8, 24)
 	ebitenutil.DebugPrintAt(screen, s.help, 8, 48)
 
 	line, cursor := s.match.Machines[0].Line()
@@ -163,4 +163,12 @@ func toPixels(v int32) float32 {
 
 func fixed(v int32) float64 {
 	return float64(v) / world.One
+}
+
+// manaText shows a body's mana, or that it is depleted.
+func manaText(b world.Body) string {
+	if b.Depleted {
+		return "mana DEPLETED"
+	}
+	return fmt.Sprintf("mana %d/%d", b.Mana, match.MaxMana)
 }

@@ -301,3 +301,31 @@ func FuzzMachine(f *testing.F) {
 		m.Run(64)
 	})
 }
+
+func TestWFIEndsTheTick(t *testing.T) {
+	// wfi stops execution for the rest of the budget; the next tick resumes
+	// after it.
+	m := newMachine(t, "addi s0, s0, 1; wfi; addi s1, s1, 1; j 0")
+	m.SetBudget(100)
+	n := 0
+	for m.Step() {
+		n++
+	}
+	if n != 2 || m.CPU.Regs[8] != 1 || m.CPU.Regs[9] != 0 {
+		t.Errorf("executed %d, s0 %d, s1 %d; want 2 instructions then wait", n, m.CPU.Regs[8], m.CPU.Regs[9])
+	}
+	m.Run(2)
+	if m.CPU.Regs[9] != 1 {
+		t.Errorf("s1 = %d, want execution to resume after wfi", m.CPU.Regs[9])
+	}
+}
+
+func TestWFIWakesForTypedLine(t *testing.T) {
+	m := newMachine(t, "loop: wfi; j loop")
+	m.Run(10)
+	typeString(m, "li a0, 3; sw a0, 0x600(zero)\n")
+	m.Run(10)
+	if got := m.RAM.Read(0x600, 4); got != 3 {
+		t.Errorf("stored %d, want the typed line to run after wfi", got)
+	}
+}

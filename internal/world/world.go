@@ -31,6 +31,11 @@ type Body struct {
 	Facing   int32 // 1 = right, -1 = left
 	Grounded bool
 	HP       int32
+
+	// Mana is spent by the player's CPU and writes. Depleted is set when
+	// the player could not pay for an instruction; it is permanent.
+	Mana     int32
+	Depleted bool
 }
 
 // World holds both bodies. Index 0 starts on the left facing right, and

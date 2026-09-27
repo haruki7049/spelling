@@ -2,7 +2,7 @@
 
 A 2D versus game where you *spell* out incantations on the keyboard. The world runs on the machine code of a virtual RISC-V CPU called Idea: fireballs, defenses, and even movement are reads and writes to memory. The design is tracked in [issue #15](https://github.com/haruki7049/spelling/issues/15).
 
-This is an early playable version: you can move your character by typing Idea. Damage, mana, and winning are not implemented yet.
+This is an early playable version: you can move your character by typing Idea, and spells cost mana. Damage and winning are not implemented yet.
 
 ## Play
 
@@ -11,7 +11,7 @@ nix develop   # or use direnv
 go run ./cmd/spelling -practice
 ```
 
-Type a line of RISC-V assembly and press Enter to run it. Your body is memory-mapped at `0x1000_2000` (x, y, vx, vy as 16.16 fixed-point at offsets 0, 4, 8, 12):
+Type a line of RISC-V assembly and press Enter to run it. Your body is memory-mapped at `0x1000_2000` (x, y, vx, vy as 16.16 fixed-point at offsets 0, 4, 8, 12; mana at 0x20) and the opponent's at `0x1000_3000`:
 
 ```
 lui t0, 0x10002; li t1, 0x80000; sw t1, 8(t0)     # run right (vx = 8.0)
@@ -19,6 +19,8 @@ lui t0, 0x10002; li t1, 0xc0000; sw t1, 12(t0)    # jump (vy = 12.0)
 ```
 
 Change the numbers to run faster or jump higher.
+
+Every instruction and every write costs mana (writing the opponent's body costs 10x). If you cannot pay for an instruction, your mana is depleted for good and you can no longer act. A program that has nothing to do should execute `wfi` to wait for the next tick without spending mana.
 
 ### Options
 

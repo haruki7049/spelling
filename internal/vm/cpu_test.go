@@ -401,3 +401,12 @@ func TestProgramSumsOneToTen(t *testing.T) {
 		t.Errorf("PC = %d, want 24 (spinning at end)", c.PC)
 	}
 }
+
+func TestWFI(t *testing.T) {
+	c, _ := newTestCPU(t, 0x10500073)
+	c.Regs[5] = 42
+	step(t, c, 1)
+	if c.PC != 4 || c.Regs[5] != 42 || !c.Waiting {
+		t.Errorf("PC = %d, x5 = %d, waiting = %v; want 4, 42, true", c.PC, c.Regs[5], c.Waiting)
+	}
+}

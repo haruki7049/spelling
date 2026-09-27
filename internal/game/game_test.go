@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/haruki7049/spelling/internal/world"
 )
 
 // stubScene returns next and err from Update and counts how often it is updated.
@@ -65,5 +66,14 @@ func TestLayoutReturnsFixedScreenSize(t *testing.T) {
 	w, h := NewGame(&stubScene{}).Layout(1920, 1080)
 	if w != WindowWidth || h != WindowHeight {
 		t.Errorf("Layout() = (%d, %d), want (%d, %d)", w, h, WindowWidth, WindowHeight)
+	}
+}
+
+func TestManaText(t *testing.T) {
+	if got := manaText(world.Body{Mana: 1234}); got != "mana 1234/600000" {
+		t.Errorf("manaText = %q", got)
+	}
+	if got := manaText(world.Body{Depleted: true}); got != "mana DEPLETED" {
+		t.Errorf("manaText = %q", got)
 	}
 }
