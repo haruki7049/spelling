@@ -55,7 +55,7 @@ func (m *Machine) writeDefense(off, v uint32) {
 			m.defEvents = m.defEvents[:len(m.defEvents)-1]
 		}
 	case DefOverflow:
-		m.defOverflow = v&1 != 0
+		m.defOverflow = u32ToBool(v)
 	}
 }
 

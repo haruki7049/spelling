@@ -71,7 +71,7 @@ func (m *Machine) writeWatch(off, v uint32) {
 	case WatchHandler:
 		e.Handler = v
 	case WatchEnabled:
-		e.Enabled = v&1 != 0
+		e.Enabled = u32ToBool(v)
 	case WatchPolicy:
 		e.Policy = v & 1
 	}
