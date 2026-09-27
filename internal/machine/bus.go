@@ -153,7 +153,7 @@ func (m *Machine) readSystem(off uint32, _ bool) uint32 {
 func (m *Machine) writeSystem(off, v uint32) {
 	switch {
 	case off == SysIntEnable:
-		m.intEnable = v&1 != 0
+		m.intEnable = u32ToBool(v)
 	case off == SysSavedPC:
 		m.savedPC = v
 	case off == SysKeyHandler:
@@ -186,7 +186,7 @@ func (m *Machine) readKeyboard(off uint32, peek bool) uint32 {
 
 func (m *Machine) writeKeyboard(off, v uint32) {
 	if off == KeyOverflow {
-		m.keyOverflow = v&1 != 0
+		m.keyOverflow = u32ToBool(v)
 	}
 }
 
@@ -230,4 +230,8 @@ func boolToU32(v bool) uint32 {
 		return 1
 	}
 	return 0
+}
+
+func u32ToBool(v uint32) bool {
+	return v&1 != 0
 }
