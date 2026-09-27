@@ -3,6 +3,7 @@ package match
 import (
 	"testing"
 
+	"github.com/haruki7049/spelling/internal/asm"
 	"github.com/haruki7049/spelling/internal/machine"
 	"github.com/haruki7049/spelling/internal/world"
 )
@@ -185,4 +186,67 @@ func TestManaChargedOnDeniedDefenseWrites(t *testing.T) {
 			t.Errorf("mana = %d, want < %d (mana deducted despite write denied)", m.World.Bodies[0].Mana, initialMana)
 		}
 	})
+}
+
+// TestEndToEndDefenseHandler runs a full defense cycle in an active match:
+// Player 1 registers a watch over their own body with a handler that reads
+// the defense event, pops it, and counters by resetting their own velocity
+// to 0. Player 0 casts a spell (a typed line) that sets Player 1's VX, and
+// the match must run the whole cycle within one tick without corrupting
+// state.
+func TestEndToEndDefenseHandler(t *testing.T) {
+	m := newMatch(t)
+
+	// Assemble Player 1's defense handler at 0x100 (idle program occupies
+	// only the first 2 words).
+	handlerSrc := `
+		lui t0, 0x10031         # DefenseBase (0x1003_1000)
+		lw a0, 8(t0)            # DefEventAddr (unused, read for realism)
+		sw zero, 16(t0)         # DefEventPop
+		lui t0, 0x10002         # OwnBodyBase (0x1000_2000)
+		sw zero, 8(t0)          # counter: reset own VX to 0
+		lui t0, 0x10000         # SystemBase
+		sw zero, 0x1c(t0)       # SysReturn
+	`
+	handlerCode, err := asm.Assemble(handlerSrc, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range handlerCode {
+		m.Machines[1].RAM.Write(uint32(0x100+4*i), 4, w)
+	}
+
+	// Player 1 watches writes to their own body with PolicyDeny.
+	configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+	m.Machines[1].Write(machine.WatchBase+machine.WatchHandler, 4, 0x100)
+
+	// Player 0 casts a spell setting Player 1's VX to 8.0 (0x80000 in
+	// 16.16 fixed point).
+	typeLine(m, 0, "lui t0, 0x10003; li t1, 0x80000; sw t1, 8(t0)")
+
+	// Player 1's idle program (wfi; j loop) waits out the rest of the tick
+	// once it finds no defense event pending, so the interrupt is only
+	// taken on the following tick once Player 0's write has landed.
+	m.Step()
+	m.Step()
+
+	// The defense event must have been consumed.
+	if got := m.Machines[1].Read(machine.DefenseBase+machine.DefEventCount, 4); got != 0 {
+		t.Fatalf("DefEventCount = %d, want 0 (handler consumed it)", got)
+	}
+
+	// The handler's counter must have taken effect: VX back to 0 despite
+	// the incoming write of targetVX.
+	if got := m.World.Bodies[1].VX; got != 0 {
+		t.Errorf("Player 1 VX = %d, want 0 (counter applied)", got)
+	}
+
+	// Player 1's interrupts must be re-enabled after SysReturn, so the
+	// match keeps running normally.
+	for range 60 {
+		m.Step()
+	}
+	if m.result != Ongoing {
+		t.Errorf("result = %v, want Ongoing (match continues smoothly)", m.result)
+	}
 }
