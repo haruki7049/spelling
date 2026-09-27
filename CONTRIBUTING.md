@@ -80,7 +80,7 @@ A pull request description should include:
 
 ## Updating Dependencies
 
-- **Nix inputs**: `flake.lock` is updated automatically by `cron-flake-update.yml`. For a manual update, run `nix flake update`.
+- **Nix inputs**: Dependabot opens a pull request for each outdated input in `flake.lock` (`.github/dependabot.yml`). For a manual update, run `nix flake update`.
 - **Go modules**: after `go get` and `go mod tidy`, run `gomod2nix` to regenerate `gomod2nix.toml`, then commit `go.mod`, `go.sum`, and `gomod2nix.toml` together.
 - **Go version**: update the `go` directive in `go.mod` and regenerate `gomod2nix.toml`.
 

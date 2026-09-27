@@ -4,7 +4,7 @@ Go module dependencies are consumed by Nix through `gomod2nix` (`buildGoApplicat
 
 ## Nix inputs (`flake.lock`)
 
-`cron-flake-update.yml` already runs `nix flake update` every 12 hours and auto-commits `build: nix flake update` to `main`. Manual updates are rarely needed.
+Dependabot (`.github/dependabot.yml`) checks `flake.lock` daily and opens one pull request per outdated input; review and merge those instead of updating manually. For a manual update of all inputs, create a topic branch and:
 
 1. Run `nix flake update`.
 1. Run `treefmt --fail-on-change`, `go build ./...`, `go test ./...`, and `nix build .#default` (inside `nix develop` or via direnv).

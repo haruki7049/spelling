@@ -18,7 +18,7 @@ ______________________________________________________________________
   - `internal/machine/`: One player's machine: CPU, memory map (System, Keyboard, assembler window, immediate-code region), keyboard input, and interrupts. The register layout is documented in the package comment.
   - `flake.nix`, `default.nix`, `shell.nix`: Nix package (`buildGoApplication` via `gomod2nix`), devShell, treefmt config, and flake-compat shims.
   - `scripts/push-artifacts-to-cachix.nu`: Nushell script used by the Cachix workflow.
-  - `.github/workflows/`: Nix checks and build (`nix-ci.yml`), release binaries on `v*` tags (`go-release.yml`), scheduled `nix flake update` auto-commits (`cron-flake-update.yml`), Cachix pushes (`cachix-push.yml`), and stale issue/PR handling (`stale-issues-pullrequests.yml`).
+  - `.github/workflows/`: Nix checks and build (`nix-ci.yml`), release binaries on `v*` tags (`go-release.yml`), Cachix pushes (`cachix-push.yml`), and stale issue/PR handling (`stale-issues-pullrequests.yml`). Dependabot (`.github/dependabot.yml`) opens pull requests for outdated `flake.lock` inputs.
 
 ______________________________________________________________________
 
