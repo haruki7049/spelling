@@ -58,8 +58,9 @@ func TestTypedJump(t *testing.T) {
 
 func TestBodyRegions(t *testing.T) {
 	m := newMatch(t)
-	// Player 1 reads both bodies, then tries to write the opponent's body.
-	typeLine(m, 1, "lui t0, 0x10002; lw a0, 0(t0); lw a1, 0x18(t0); lui t1, 0x10003; lw a2, 0(t1); li a3, 0; sw a3, 0(t1); sw a0, 0x100(zero); sw a1, 0x104(zero); sw a2, 0x108(zero)")
+	// Player 1 reads both bodies. Writing the opponent's body is covered by
+	// TestOpponentBodyIsWritableAtCost.
+	typeLine(m, 1, "lui t0, 0x10002; lw a0, 0(t0); lw a1, 0x18(t0); lui t1, 0x10003; lw a2, 0(t1); sw a0, 0x100(zero); sw a1, 0x104(zero); sw a2, 0x108(zero)")
 	m.Step()
 	mc := m.Machines[1]
 	if got := int32(mc.RAM.Read(0x100, 4)); got != m.World.Bodies[1].X {
@@ -70,9 +71,6 @@ func TestBodyRegions(t *testing.T) {
 	}
 	if got := int32(mc.RAM.Read(0x108, 4)); got != m.World.Bodies[0].X {
 		t.Errorf("opponent x = %d, want %d", got, m.World.Bodies[0].X)
-	}
-	if m.World.Bodies[0].X == 0 {
-		t.Error("the opponent body was written")
 	}
 }
 
