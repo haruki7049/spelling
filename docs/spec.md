@@ -272,11 +272,13 @@ Without `-elf`, the player runs the idle program from [Mana](#7-mana) at address
 
 - The stage is 1,024 × 576 units. x grows to the right and y grows upward. The floor is y = 0, the walls are x = 0 and x = 1,024, and the ceiling is y = 576 *(`world.Width`, `world.Height`)*.
 - Bodies are 32 × 64 units *(tentative)*. A body's position is its bottom-left corner. Player 0 starts at x = 256 and player 1 at x = 736, on the floor, facing each other.
-- Each tick, for each body:
-  1. Velocities are clamped to ±64 units per tick on each axis *(tentative, `world.MaxSpeed`)*. Gravity then subtracts 0.5 from vy *(tentative, `world.Gravity`)*, and vy is clamped again.
+- Each tick:
+  1. For each body, velocities are clamped to ±64 units per tick on each axis *(tentative, `world.MaxSpeed`)*. Gravity then subtracts 0.5 from vy *(tentative, `world.Gravity`)*, and vy is clamped again.
   1. On the ground, friction reduces |vx| by 0.25 *(tentative, `world.Friction`)*.
-  1. The body moves by its velocity. The walls, floor, and ceiling stop it and zero the velocity on that axis.
-  1. Grounded is updated. Facing follows the sign of vx, unless a facing written with mana is still holding.
-- HP starts at 100 *(tentative, `world.MaxHP`)*. Nothing reduces HP yet; damage, winning, and losing are not implemented.
+  1. Both bodies move by their velocities in 8 substeps. The walls, floor, and ceiling stop a body and zero its velocity on that axis. **Bodies collide**: overlapping bodies are pushed apart along the axis of least overlap, and each loses its own velocity toward the other on that axis. A body that lands on the other stands on it.
+  1. Grounded is updated (on the floor or on the other body). Facing follows the sign of vx, unless a facing written with mana is still holding.
+- HP starts at 100 *(tentative, `world.MaxHP`)* and never goes below 0.
+- **Impact damage**: whenever a body loses velocity in an impact (the stage or the other body), the lost speed above 16 units per tick *(tentative, `world.DamageThreshold`)* is subtracted from HP, 1 HP per 1.0 of speed. A normal jump lands at about 12 and does no damage; a wall hit at the max speed of 64 deals 48. A body only loses its own velocity toward the other, so ramming a standing body hurts the rammer, not the standing body.
+- Winning and losing are not implemented yet.
 
 Any velocity can be written, but physics clamps it on the next step, so extreme values cannot overflow or move a body more than 64 units per tick.
