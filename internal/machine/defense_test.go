@@ -432,3 +432,73 @@ func TestStaleFrontDefenseEventBlocksQueue(t *testing.T) {
 		t.Errorf("PC after unblock = %#x, want 0x200", m.CPU.PC)
 	}
 }
+
+// TestUnpoppedDefenseInterruptStarvesKeyboard records the current behavior where
+// a defense event left in the queue without being popped causes defenseHandler
+// to repeatedly re-trigger on subsequent interrupts, permanently starving the
+// keyboard interrupt.
+//
+// NOTE: This records current behavior and is not a decided design choice.
+func TestUnpoppedDefenseInterruptStarvesKeyboard(t *testing.T) {
+	m := newMachine(t, `
+	main:
+		addi s0, s0, 1
+		j main
+	`)
+
+	// Defense handler that returns via SysReturn without popping DefEventPop
+	defCode, err := asm.Assemble(`
+		lui t0, 0x10000
+		sw zero, 0x1c(t0)       # SysReturn without DefEventPop
+	`, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range defCode {
+		m.RAM.Write(uint32(0x100+4*i), 4, w)
+	}
+
+	// Key handler at 0x200
+	keyCode, err := asm.Assemble(`
+		lui t0, 0x10001
+		lw a1, 4(t0)            # KeyNext
+		li a0, 0xcafe
+		sw a0, 0x600(zero)      # mark key handler ran
+		lui t0, 0x10000
+		sw zero, 0x1c(t0)       # SysReturn
+	`, 0x200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, w := range keyCode {
+		m.RAM.Write(uint32(0x200+4*i), 4, w)
+	}
+
+	m.Write(SystemBase+SysKeyHandler, 4, 0x200)
+
+	base := WatchBase
+	m.Write(base+WatchStart, 4, 0x1000_2000)
+	m.Write(base+WatchEnd, 4, 0x1000_2020)
+	m.Write(base+WatchFlags, 4, WatchWrite)
+	m.Write(base+WatchHandler, 4, 0x100)
+	m.Write(base+WatchEnabled, 4, 1)
+
+	m.Run(5)
+
+	m.Type('A')
+	m.NotifyDefense(1, 0x1000_2008, 0x80000)
+
+	// Run for several cycles: defense handler returns and immediately gets re-entered
+	// because the event remains unpopped. Key handler is starved.
+	m.Run(50)
+
+	if got := m.RAM.Read(0x600, 4); got != 0 {
+		t.Errorf("RAM[0x600] = %#x, want 0 (keyboard handler starved)", got)
+	}
+	if got := m.Read(KeyboardBase+KeyCount, 4); got != 1 {
+		t.Errorf("KeyCount = %d, want 1 (unprocessed key remains queued)", got)
+	}
+	if got := m.Read(DefenseBase+DefEventCount, 4); got != 1 {
+		t.Errorf("DefEventCount = %d, want 1", got)
+	}
+}
