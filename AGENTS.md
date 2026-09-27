@@ -15,6 +15,7 @@ ______________________________________________________________________
   - `internal/game/`: Game logic (`game.go`: `Game` type and window constants, `scene.go`: scene abstraction, `example_scene.go`: sample scene).
   - `internal/vm/`: Virtual CPU that runs Idea, the in-game RISC-V RV32I machine code (`cpu.go`: instruction execution, `bus.go`: memory interface and RAM, `elf.go`: validating ELF loader). Game-specific behavior is tracked in issue #15.
   - `internal/asm/`: Built-in assembler that turns typed text into Idea (RISC-V assembly with common pseudo-instructions and labels).
+  - `internal/machine/`: One player's machine: CPU, memory map (System, Keyboard, assembler window, immediate-code region), keyboard input, and interrupts. The register layout is documented in the package comment.
   - `flake.nix`, `default.nix`, `shell.nix`: Nix package (`buildGoApplication` via `gomod2nix`), devShell, treefmt config, and flake-compat shims.
   - `scripts/push-artifacts-to-cachix.nu`: Nushell script used by the Cachix workflow.
   - `.github/workflows/`: Nix checks and build (`nix-ci.yml`), release binaries on `v*` tags (`go-release.yml`), scheduled `nix flake update` auto-commits (`cron-flake-update.yml`), Cachix pushes (`cachix-push.yml`), and stale issue/PR handling (`stale-issues-pullrequests.yml`).
