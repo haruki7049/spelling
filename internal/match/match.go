@@ -122,9 +122,9 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 				mc.RAM.Write(uint32(4*j), 4, w)
 			}
 		}
-		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: body, factor: 1, writer: i, target: i})
-		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor, writer: i, target: 1 - i})
-		mc.PayAssembler = func() bool { return m.pay(body, CostAssembler) }
+		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: i, factor: 1, writer: i, target: i})
+		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: i, factor: OpponentCostFactor, writer: i, target: 1 - i})
+		mc.PayAssembler = func() bool { return m.pay(i, CostAssembler) }
 		m.Machines[i] = mc
 	}
 	return m, nil
@@ -191,30 +191,27 @@ func (m *Match) stepPlayer(i int) bool {
 	if b.Depleted || mc.Remaining() <= 0 {
 		return false
 	}
-	if !m.pay(b, InstructionCost) {
+	if !m.pay(i, InstructionCost) {
 		deplete(b, mc)
 		return false
 	}
 	return mc.Step()
 }
 
-// pay spends cost from b's mana if it can afford it, and records the cost
+// pay spends cost from player's mana if it can afford it, and records the cost
 // for that player's mana rate. With InfiniteMana, payments always succeed
 // and mana is untouched, while expenditures are still recorded.
-func (m *Match) pay(b *world.Body, cost int32) bool {
-	idx := 0
-	if b == &m.World.Bodies[1] {
-		idx = 1
-	}
+func (m *Match) pay(player int, cost int32) bool {
 	if m.InfiniteMana {
-		m.spentThisTick[idx] += cost
+		m.spentThisTick[player] += cost
 		return true
 	}
+	b := &m.World.Bodies[player]
 	if b.Depleted || b.Mana < cost {
 		return false
 	}
 	b.Mana -= cost
-	m.spentThisTick[idx] += cost
+	m.spentThisTick[player] += cost
 	return true
 }
 
@@ -231,7 +228,7 @@ func deplete(b *world.Body, mc *machine.Machine) {
 type bodyDevice struct {
 	match  *Match
 	body   *world.Body
-	payer  *world.Body
+	payer  int
 	factor int32
 	writer int
 	target int
