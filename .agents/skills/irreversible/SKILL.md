@@ -11,7 +11,7 @@ Prevent data loss, unwanted history changes, and broad side effects.
 Confirm before operations that may:
 
 - delete or overwrite user-authored files
-- change git history or push to remote
+- change pushed git history (force push, rebase or amend of pushed commits), or push to `main` (never allowed; see `AGENTS.md`). Ordinary pushes to your own topic branch do not need confirmation.
 - affect databases, secrets, or production data
 - modify files outside the repository
 - apply broad formatting or auto-fixes outside the task scope

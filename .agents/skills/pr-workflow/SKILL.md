@@ -13,7 +13,8 @@ Before committing or opening a PR, execute the following commands (inside `nix d
 | **Build** | `go build ./...` | Compiles all packages |
 | **Run All Tests** | `go test ./...` | Executes the unit tests |
 | **Vet** | `go vet ./...` | Reports suspicious constructs (recommended for Go code changes) |
-| **Nix Build** | `nix build .#default` | Mirrors `nix-ci.yml`; run when `go.mod`, `go.sum`, `gomod2nix.toml`, or Nix files change |
+| **Nix Build** | `nix build .#default` | Mirrors `nix-ci.yml`; needed when `go.mod`, `go.sum`, `gomod2nix.toml`, or Nix files change, and useful when files were added (the flake only sees git-tracked files). It is slow, so follow the `verify` skill: ask the user before running it |
+| **Ignored Files** | `git status -s --ignored` | After `git add -A`, confirm no new source file is hidden by `.gitignore` (`internal/repo` also tests this for Go files) |
 | **Nix Flake Check** | `nix flake check --all-systems` | Mirrors `nix-ci.yml`; run when `flake.nix`/`flake.lock` change |
 
 ## 2. Commit & PR Title Conventions

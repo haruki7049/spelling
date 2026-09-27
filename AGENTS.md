@@ -34,14 +34,26 @@ ______________________________________________________________________
 - **Verification Before Submitting**: All changes must pass `treefmt --fail-on-change`, `go build ./...`, and `go test ./...`.
 - **Conventional Commits**: Use conventional commit prefixes (`feat:`, `fix:`, `refactor:`, `docs:`, `build:`, `test:`), optionally with a scope.
 - **Evidence First**: Base all answers and actions on actual file contents and command output. Never speculate or assume.
-- **Non-Destructive**: Never perform irreversible actions (file deletions, hard resets, remote push) without explicit user approval.
+- **Non-Destructive**: Never perform irreversible actions (file deletions, hard resets, force pushes or other rewrites of pushed history) without explicit user approval. Pushing to `main` is never allowed (see above). Ordinary pushes to your own topic branches are allowed without confirmation.
 - **Targeted Edits**: Make minimal, logical changes strictly necessary for the request. Do not modify unrelated files.
+- **Small PRs**: Split work into small, focused pull requests on topic branches, each reviewable on its own. When asked what can be implemented, list what the decided spec allows now, then implement it as small PRs.
 - **English-Only Documentation**: All repository documentation, agent skills, code comments, commit messages, and PR descriptions must be written strictly in English.
 - **Explicit Milestone Assignment Only**: AI agents **MUST NEVER** automatically attach or set GitHub Milestones on Pull Requests or Issues unless explicitly requested or instructed by the user.
+- **Fetch Before Branching**: Always run `git fetch origin` before creating a topic branch for a PR and before judging the state of a remote branch (what `main` contains, whether a PR is merged). Branch from the fetched `origin/main`, not a possibly stale local `main`.
+- **Announce the Game Window**: Before running anything that opens the game window (`go run ./cmd/spelling`, screenshot harnesses), tell the user in one line: that a window will open (it takes focus and keyboard input), for how long, and how it will be checked (e.g. capturing the game's own frame to a PNG). Permission is not required.
 
 ______________________________________________________________________
 
-## 3. Status Assessment Workflow
+## 3. Development Workflow
+
+- **Test First**: For new features and decided behavior, write the test first, confirm it fails, then implement. Where practical, confirm that a deliberate break of the implementation makes the tests fail.
+- **Doubts Become Characterization Tests**: When a question or doubt about existing behavior comes up (an edge case, an overflow, "what happens if ..."), immediately add a regression test that records the **current** behavior, even if it looks like a bug, with a comment saying it is current behavior and not a decision. **Do not change the implementation** unless the user decides to; report the finding and ask.
+- **Design Decisions Go to Issue #15**: Game design is discussed with the user by offering a few concrete options with trade-offs and a clear recommendation. Decisions are recorded in the design memo, issue #15 (English): tick the checklist item, add "**Decided: ...**", and update the affected sections. When editing the issue body, fetch it fresh, check that the fetched body is not empty before writing it back, and diff before and after. If a body is ever lost, restore it from the issue's edit history (GraphQL `userContentEdits`). When asked to list the open questions again, list the remaining ones by priority and mark newly raised ones with ★.
+- **Do Not Block on CI**: After pushing, report that CI is running and continue. Check CI when the user asks, before calling a PR mergeable, or when a failure is reported.
+
+______________________________________________________________________
+
+## 4. Status Assessment Workflow
 
 When asked to check status, assess the situation, or understand workspace context:
 
@@ -53,7 +65,7 @@ When asked to check status, assess the situation, or understand workspace contex
 
 ______________________________________________________________________
 
-## 4. Workspace Skills
+## 5. Workspace Skills
 
 Detailed runbooks and procedural workflows are maintained as workspace skills under `.agents/skills/`:
 
