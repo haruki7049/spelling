@@ -1,6 +1,7 @@
 package match
 
 import (
+	"math"
 	"testing"
 
 	"github.com/haruki7049/spelling/internal/asm"
@@ -245,5 +246,96 @@ func TestFacingRewriteRestartsHold(t *testing.T) {
 		if b.Facing != -1 {
 			t.Fatalf("tick %d after the rewrite: facing = %d, want held", i+1, b.Facing)
 		}
+	}
+}
+
+func TestManaSpentPerSecondTracksRate(t *testing.T) {
+	m := newMatch(t)
+	if got := m.ManaSpentPerSecond(0); got != 0 {
+		t.Fatalf("initial mana spent per second = %d, want 0", got)
+	}
+
+	// Player 0 runs a busy loop for 1 tick: 1000 instructions = 1000 mana spent.
+	load(t, m, 0, busyLoop)
+	m.Step()
+	if got := m.ManaSpentPerSecond(0); got != InstructionsPerTick*InstructionCost {
+		t.Fatalf("mana spent per second after 1 tick = %d, want %d", got, InstructionsPerTick*InstructionCost)
+	}
+	// Player 1 is idle, so spends 1 instruction before wfi.
+	if got := m.ManaSpentPerSecond(1); got != 1 {
+		t.Fatalf("idle player mana spent per second = %d, want 1", got)
+	}
+
+	// Now replace player 0's program with idleProgram so it only spends 1 mana per tick.
+	for j, w := range idleProgram {
+		m.Machines[0].RAM.Write(uint32(4*j), 4, w)
+	}
+	m.Machines[0].CPU.Entry = 0
+	m.Machines[0].CPU.Restart()
+
+	// Advance 58 more ticks (total 59 ticks completed: tick 0 + 58 ticks).
+	for range 58 {
+		m.Step()
+	}
+	// The window of 59 ticks has: 1 tick of 1000, 1 tick of 1 (wfi only),
+	// and 57 ticks of 2 (j and wfi) = 1115.
+	if got := m.ManaSpentPerSecond(0); got != 1115 {
+		t.Fatalf("mana spent after 59 ticks = %d, want 1115", got)
+	}
+
+	// Tick 59 (the 60th tick): all 60 slots (0..59) are now filled.
+	m.Step()
+	if got := m.ManaSpentPerSecond(0); got != 1117 {
+		t.Fatalf("mana spent after 60 ticks = %d, want 1117", got)
+	}
+
+	// Tick 60 (the 61st tick): the 1000-mana tick rolls out of slot 0 and
+	// is replaced by another 2-mana tick.
+	m.Step()
+	// Now 1 tick of 1 + 59 ticks of 2 = 119.
+	if got := m.ManaSpentPerSecond(0); got != 119 {
+		t.Fatalf("mana spent after tick 0 rolled out = %d, want 119", got)
+	}
+}
+
+func TestManaSpentPerSecondTracksWrites(t *testing.T) {
+	m := newMatch(t)
+	// Player 0 writes own velocity 8.0: costs 100.
+	// Plus 1 instruction for idle tick.
+	velocityWrite(t, m, OwnBodyBase, 8<<16)
+	m.Step()
+	// 100 from velocity write + 1 from idle instruction = 101.
+	if got := m.ManaSpentPerSecond(0); got != 101 {
+		t.Fatalf("mana spent with velocity write = %d, want 101", got)
+	}
+	// Player 1 spent only 1 (idle).
+	if got := m.ManaSpentPerSecond(1); got != 1 {
+		t.Fatalf("player 1 mana spent = %d, want 1", got)
+	}
+}
+
+func TestManaSpentPerSecondTracksOpponentWrites(t *testing.T) {
+	m := newMatch(t)
+	// Player 0 writes opponent's velocity 8.0: costs 100 * 10 = 1000.
+	velocityWrite(t, m, OpponentBodyBase, 8<<16)
+	m.Step()
+	// Player 0 pays for writing the opponent, not player 1!
+	if got := m.ManaSpentPerSecond(0); got != 1001 {
+		t.Fatalf("player 0 mana spent writing opponent = %d, want 1001", got)
+	}
+	if got := m.ManaSpentPerSecond(1); got != 1 {
+		t.Fatalf("player 1 mana spent = %d, want 1", got)
+	}
+}
+
+func TestManaSpentPerSecondIgnoresUnaffordableWrites(t *testing.T) {
+	m := newMatch(t)
+	m.World.Bodies[0].Mana = 100
+	// Write MaxInt32 velocity (would cost 6400, unaffordable): ignored.
+	velocityWrite(t, m, OwnBodyBase, math.MaxInt32)
+	m.Step()
+	// Only the 1 idle instruction was paid.
+	if got := m.ManaSpentPerSecond(0); got != 1 {
+		t.Fatalf("mana spent after unaffordable write = %d, want 1", got)
 	}
 }
