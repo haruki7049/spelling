@@ -242,9 +242,9 @@ func (m *Machine) takeInterrupt() {
 		return
 	}
 	var target uint32
-	switch {
-	case m.defenseHandler() != 0:
-		target = m.defenseHandler()
+	switch h := m.defenseHandler(); {
+	case h != 0:
+		target = h
 	case m.keyHandler != 0 && len(m.keys) > 0:
 		target = m.keyHandler
 	case m.keyHandler == 0 && m.pendingLine != nil:
