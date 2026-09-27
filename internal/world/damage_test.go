@@ -113,22 +113,6 @@ func TestHeadOnCollisionHurtsBoth(t *testing.T) {
 	}
 }
 
-// Agreed rule: bodies lose their own velocity along the collision axis. So
-// ramming a standing body hurts only the rammer. Recorded as current
-// behavior; see issue #15.
-func TestRammingHurtsOnlyTheRammer(t *testing.T) {
-	w := New()
-	w.Bodies[0].X = w.Bodies[1].X - BodyWidth - One
-	w.Bodies[0].VX = MaxSpeed
-	w.Step()
-	if d := MaxHP - w.Bodies[0].HP; d == 0 {
-		t.Error("the rammer took no damage")
-	}
-	if d := MaxHP - w.Bodies[1].HP; d != 0 {
-		t.Errorf("the standing body took %d damage; the agreed rule gives 0", d)
-	}
-}
-
 func TestStandingOnTheOtherBody(t *testing.T) {
 	w := New()
 	w.Bodies[0].X = w.Bodies[1].X
@@ -171,4 +155,24 @@ func FuzzWorld(f *testing.F) {
 			}
 		}
 	})
+}
+
+// Collisions conserve momentum: ramming a standing body at max speed moves
+// both at half the speed, and both take damage for their change in speed.
+func TestRammingSharesMomentum(t *testing.T) {
+	w := New()
+	w.Bodies[0].X = w.Bodies[1].X - BodyWidth - One
+	w.Bodies[0].VX = MaxSpeed
+	w.Step()
+	a, b := w.Bodies[0], w.Bodies[1]
+	// Friction takes 0.25 first, so the rammer hits at 63.75 and both end at
+	// 31.875: each changes speed by 31.875, 15.875 above the threshold.
+	if want := int32(MaxSpeed-Friction) / 2; a.VX != want || b.VX != want {
+		t.Errorf("vx after ramming = %d, %d; want both %d", a.VX, b.VX, want)
+	}
+	for i, body := range w.Bodies {
+		if d := MaxHP - body.HP; d != 15 {
+			t.Errorf("body %d damage %d, want 15", i, d)
+		}
+	}
 }

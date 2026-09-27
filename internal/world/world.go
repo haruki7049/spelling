@@ -138,31 +138,33 @@ func (b *Body) stageAxis(pos, d, max int32, v *int32) int32 {
 	p := int64(pos) + int64(d)
 	switch {
 	case p <= 0:
-		b.impact(v)
+		b.impact(v, 0)
 		return 0
 	case p >= int64(max):
-		b.impact(v)
+		b.impact(v, 0)
 		return max
 	}
 	return int32(p)
 }
 
-// impact stops the velocity v and deals damage for the speed lost above
-// DamageThreshold.
-func (b *Body) impact(v *int32) {
-	lost := *v
-	if lost < 0 {
-		lost = -lost
+// impact changes the velocity *v to to and deals damage for the change in
+// speed above DamageThreshold.
+func (b *Body) impact(v *int32, to int32) {
+	change := int64(*v) - int64(to)
+	if change < 0 {
+		change = -change
 	}
-	*v = 0
-	if lost > DamageThreshold {
-		b.HP = max(b.HP-(lost-DamageThreshold)/One, 0)
+	*v = to
+	if change > DamageThreshold {
+		b.HP = max(b.HP-int32((change-DamageThreshold)/One), 0)
 	}
 }
 
 // collide separates overlapping bodies along the axis of least overlap.
-// Each body loses its velocity toward the other on that axis, which deals
-// impact damage. A body pushed up onto the other stands on it.
+// If they are moving toward each other on that axis, momentum is conserved
+// (equal masses, perfectly inelastic): both take the average velocity, and
+// each takes impact damage for its own change. A body pushed up onto the
+// other stands on it.
 func collide(a, b *Body) {
 	ox := min(a.X, b.X) + BodyWidth - max(a.X, b.X)
 	oy := min(a.Y, b.Y) + BodyHeight - max(a.Y, b.Y)
@@ -175,12 +177,7 @@ func collide(a, b *Body) {
 			left, right = b, a
 		}
 		separate(&left.X, &right.X, ox, Width-BodyWidth)
-		if left.VX > 0 {
-			left.impact(&left.VX)
-		}
-		if right.VX < 0 {
-			right.impact(&right.VX)
-		}
+		share(left, right, &left.VX, &right.VX)
 		return
 	}
 	low, high := a, b
@@ -188,12 +185,7 @@ func collide(a, b *Body) {
 		low, high = b, a
 	}
 	separate(&low.Y, &high.Y, oy, Height-BodyHeight)
-	if high.VY < 0 {
-		high.impact(&high.VY)
-	}
-	if low.VY > 0 {
-		low.impact(&low.VY)
-	}
+	share(low, high, &low.VY, &high.VY)
 	high.Grounded = true
 }
 
@@ -228,4 +220,16 @@ func (b *Body) finish() {
 // limit clamps a velocity to [-MaxSpeed, MaxSpeed].
 func limit(v int32) int32 {
 	return min(max(v, -MaxSpeed), MaxSpeed)
+}
+
+// share makes two colliding bodies move together along one axis if they
+// are approaching: lo (left or lower) moving toward hi faster than hi moves
+// away. Both end with the average velocity.
+func share(lo, hi *Body, vlo, vhi *int32) {
+	if *vlo <= *vhi {
+		return // not approaching
+	}
+	avg := int32((int64(*vlo) + int64(*vhi)) / 2)
+	lo.impact(vlo, avg)
+	hi.impact(vhi, avg)
 }
