@@ -1,0 +1,137 @@
+package match
+
+import (
+	"testing"
+
+	"github.com/haruki7049/spelling/internal/machine"
+	"github.com/haruki7049/spelling/internal/world"
+)
+
+func configureWatch(mc *machine.Machine, slot int, start, end, flags uint32, policy uint32) {
+	base := machine.WatchBase + uint32(slot)*machine.WatchEntrySize
+	mc.Write(base+machine.WatchStart, 4, start)
+	mc.Write(base+machine.WatchEnd, 4, end)
+	mc.Write(base+machine.WatchFlags, 4, flags)
+	mc.Write(base+machine.WatchPolicy, 4, policy)
+	mc.Write(base+machine.WatchEnabled, 4, 1)
+}
+
+func TestOpponentWriteQueuesDefenseEvent(t *testing.T) {
+	m := newMatch(t)
+	// Player 1 watches writes to their own body
+	configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+	// Player 0 writes to OpponentBodyBase + BodyVX (8.0)
+	vx := uint32(8 * world.One)
+	m.Machines[0].Write(OpponentBodyBase+BodyVX, 4, vx)
+
+	// Check Player 1's defense info
+	defBase := machine.DefenseBase
+	if got := m.Machines[1].Read(defBase+machine.DefEventCount, 4); got != 1 {
+		t.Fatalf("count = %d, want 1", got)
+	}
+	if got := m.Machines[1].Read(defBase+machine.DefEventWho, 4); got != 0 {
+		t.Errorf("who = %d, want 0", got)
+	}
+	if got := m.Machines[1].Read(defBase+machine.DefEventAddr, 4); got != OwnBodyBase+BodyVX {
+		t.Errorf("addr = %#x, want %#x", got, OwnBodyBase+BodyVX)
+	}
+	if got := m.Machines[1].Read(defBase+machine.DefEventValue, 4); got != vx {
+		t.Errorf("value = %#x, want %#x", got, vx)
+	}
+
+	// Verify Player 1's VX was actually set
+	if m.World.Bodies[1].VX != int32(vx) {
+		t.Errorf("opponent VX = %d, want %d", m.World.Bodies[1].VX, vx)
+	}
+}
+
+func TestSelfWriteDoesNotQueueDefenseEvent(t *testing.T) {
+	m := newMatch(t)
+	// Player 0 watches writes to their own body
+	configureWatch(m.Machines[0], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+	// Player 0 writes to OwnBodyBase + BodyVX
+	m.Machines[0].Write(OwnBodyBase+BodyVX, 4, uint32(8*world.One))
+
+	// Defense queue of Player 0 should remain empty
+	if got := m.Machines[0].Read(machine.DefenseBase+machine.DefEventCount, 4); got != 0 {
+		t.Errorf("count = %d, want 0", got)
+	}
+}
+
+func TestOpponentWriteDenyPolicyOnOverflow(t *testing.T) {
+	m := newMatch(t)
+	// Player 1 watches writes to their own body with PolicyDeny
+	configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+	// Fill Player 1's defense queue with 16 events
+	for i := range machine.DefQueueCap {
+		if !m.Machines[1].NotifyDefense(0, OwnBodyBase, uint32(i)) {
+			t.Fatalf("fill event %d failed", i)
+		}
+	}
+
+	// Player 0 attempts to write to opponent's VX
+	m.Machines[0].Write(OpponentBodyBase+BodyVX, 4, uint32(10*world.One))
+
+	// Write should be denied because queue is full and policy is deny
+	if got := m.World.Bodies[1].VX; got != 0 {
+		t.Errorf("opponent VX = %d, want 0 (denied)", got)
+	}
+
+	// Overflow flag should be set
+	if got := m.Machines[1].Read(machine.DefenseBase+machine.DefOverflow, 4); got != 1 {
+		t.Errorf("overflow = %d, want 1", got)
+	}
+}
+
+func TestOpponentWriteAllowPolicyOnOverflow(t *testing.T) {
+	m := newMatch(t)
+	// Player 1 watches writes to their own body with PolicyAllow
+	configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyAllow)
+
+	// Fill Player 1's defense queue with 16 events
+	for i := range machine.DefQueueCap {
+		if !m.Machines[1].NotifyDefense(0, OwnBodyBase, uint32(i)) {
+			t.Fatalf("fill event %d failed", i)
+		}
+	}
+
+	// Player 0 attempts to write to opponent's VX
+	targetVX := int32(10 * world.One)
+	m.Machines[0].Write(OpponentBodyBase+BodyVX, 4, uint32(targetVX))
+
+	// Write should be allowed despite queue overflow because policy is allow
+	if got := m.World.Bodies[1].VX; got != targetVX {
+		t.Errorf("opponent VX = %d, want %d (allowed)", got, targetVX)
+	}
+
+	// Overflow flag should still be set
+	if got := m.Machines[1].Read(machine.DefenseBase+machine.DefOverflow, 4); got != 1 {
+		t.Errorf("overflow = %d, want 1", got)
+	}
+}
+
+func TestOpponentWritePositionRegistersDefense(t *testing.T) {
+	m := newMatch(t)
+	// Player 1 watches writes to their own body
+	configureWatch(m.Machines[1], 0, OwnBodyBase, OwnBodyBase+bodySize, machine.WatchWrite, machine.PolicyDeny)
+
+	newX := uint32(300 * world.One)
+	m.Machines[0].Write(OpponentBodyBase+BodyX, 4, newX)
+
+	defBase := machine.DefenseBase
+	if got := m.Machines[1].Read(defBase+machine.DefEventCount, 4); got != 1 {
+		t.Fatalf("count = %d, want 1", got)
+	}
+	if got := m.Machines[1].Read(defBase+machine.DefEventAddr, 4); got != OwnBodyBase+BodyX {
+		t.Errorf("addr = %#x, want %#x", got, OwnBodyBase+BodyX)
+	}
+	if got := m.Machines[1].Read(defBase+machine.DefEventValue, 4); got != newX {
+		t.Errorf("value = %#x, want %#x", got, newX)
+	}
+	if got := m.World.Bodies[1].X; got != int32(newX) {
+		t.Errorf("body X = %d, want %d", got, newX)
+	}
+}

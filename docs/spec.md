@@ -42,10 +42,11 @@ Each player has their own address space:
 | `0x1000_2000` | Own body | [3.3](#33-bodies-0x1000_2000-and-0x1000_3000) |
 | `0x1000_3000` | Opponent body | [3.3](#33-bodies-0x1000_2000-and-0x1000_3000) |
 | `0x1003_0000` | Watch registration | [3.4](#34-watch-registration-0x1003_0000) |
-| `0x1005_0000` | Built-in assembler window | [3.5](#35-built-in-assembler-window-0x1005_0000) |
-| `0x1006_0000` | Immediate-code region, 4 KiB | [3.6](#36-immediate-code-region-0x1006_0000) |
+| `0x1003_1000` | Defense info | [3.5](#35-defense-info-0x1003_1000) |
+| `0x1005_0000` | Built-in assembler window | [3.6](#36-built-in-assembler-window-0x1005_0000) |
+| `0x1006_0000` | Immediate-code region, 4 KiB | [3.7](#37-immediate-code-region-0x1006_0000) |
 
-Everything else is unmapped. Planned regions that do not exist yet: the object table (`0x1001_0000`), laws (`0x1002_0000`), win conditions (`0x1002_1000`), defense info (`0x1003_1000`), and the opponent RAM window (`0x1004_0000`).
+Everything else is unmapped. Planned regions that do not exist yet: the object table (`0x1001_0000`), laws (`0x1002_0000`), win conditions (`0x1002_1000`), and the opponent RAM window (`0x1004_0000`).
 
 Register access rules: a byte or halfword access to a register reads or replaces only those bytes of the word. Each register an access touches is read once, so a side effect such as popping a character happens once per access. Writes to read-only registers are ignored.
 
@@ -122,7 +123,23 @@ Configures watched address ranges for defense interrupts (see [Defense](#8-defen
 
 Entry `i` (0 to 3) is located at `0x1003_0000 + i * 0x20`. When multiple entries match an access, the lowest-indexed entry takes priority.
 
-### 3.5 Built-in assembler window (`0x1005_0000`)
+### 3.5 Defense info (`0x1003_1000`)
+
+Provides information about intercepted opponent writes detected by active watch entries (see [Watch registration](#34-watch-registration-0x1003_0000)). Holds a FIFO queue of up to 16 events *(tentative, `machine.DefQueueCap`)*:
+
+| Offset | Register | Format | Access | Description |
+| --- | --- | --- | --- | --- |
+| `+0x00` | Count | integer | read-only | Number of events currently in the queue |
+| `+0x04` | Who | integer | read-only | Writer player ID for the front event (0 if empty) |
+| `+0x08` | Address | address | read-only | Target address in own space for the front event (0 if empty) |
+| `+0x0C` | Value | integer | read-only | Written value of the front event (0 if empty) |
+| `+0x10` | Pop | — | write-only | Any write pops the front event |
+| `+0x14` | Overflow | integer | read-write | `1` after an event was dropped; write `0` to clear |
+| `+0x18`-`+0x1C` | Reserved | — | read-only | Reads return 0, writes ignored |
+
+When an opponent writes to a watched address and the queue is full, the notification is dropped, the overflow flag is set to `1`, and the write is handled by the matching watch entry's default policy (`0` = allow, `1` = deny).
+
+### 3.6 Built-in assembler window (`0x1005_0000`)
 
 Lets a program assemble text with the built-in assembler (see [Built-in assembler](#8-built-in-assembler)).
 
@@ -163,7 +180,7 @@ li t2, 0x400
 jalr ra, 0(t2)      # run the result
 ```
 
-### 3.6 Immediate-code region (`0x1006_0000`)
+### 3.7 Immediate-code region (`0x1006_0000`)
 
 4 KiB of memory where the built-in line editor places each submitted line (see [Keyboard input](#5-keyboard-input)). The game overwrites it every time a line runs. It is readable, writable, and executable by the player.
 

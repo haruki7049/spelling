@@ -122,8 +122,8 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 				mc.RAM.Write(uint32(4*j), 4, w)
 			}
 		}
-		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: body, factor: 1})
-		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor})
+		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: body, factor: 1, writer: i, target: i})
+		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor, writer: i, target: 1 - i})
 		mc.PayAssembler = func() bool { return m.pay(body, CostAssembler) }
 		m.Machines[i] = mc
 	}
@@ -233,11 +233,28 @@ type bodyDevice struct {
 	body   *world.Body
 	payer  *world.Body
 	factor int32
+	writer int
+	target int
 
 	// changed is the total |change| of vx and vy written through this
 	// device during tick changedTick; velocity costs are charged on it.
 	changed     [2]int64
 	changedTick uint32
+}
+
+func (d *bodyDevice) notifyDefense(off, v uint32) bool {
+	if d.writer == d.target {
+		return true
+	}
+	targetAddr := OwnBodyBase + off
+	watch := d.match.Machines[d.target].MatchingWatch(targetAddr, true)
+	if watch == nil {
+		return true
+	}
+	if !d.match.Machines[d.target].NotifyDefense(uint32(d.writer), targetAddr, v) && watch.Policy == machine.PolicyDeny {
+		return false
+	}
+	return true
 }
 
 func (d *bodyDevice) ReadReg(off uint32) uint32 {
@@ -289,14 +306,17 @@ func writeCost(off uint32) int32 {
 func (d *bodyDevice) WriteReg(off, v uint32) {
 	switch off {
 	case BodyVX:
-		d.writeVelocity(0, &d.body.VX, int32(v))
+		d.writeVelocity(off, 0, &d.body.VX, v)
 		return
 	case BodyVY:
-		d.writeVelocity(1, &d.body.VY, int32(v))
+		d.writeVelocity(off, 1, &d.body.VY, v)
 		return
 	}
 	cost := writeCost(off)
 	if cost == 0 || !d.match.pay(d.payer, cost*d.factor) {
+		return
+	}
+	if !d.notifyDefense(off, v) {
 		return
 	}
 	b := d.body
@@ -330,11 +350,11 @@ func velocityCost(change int64) int64 {
 // the square of the total change written to this axis through this device
 // in the current tick, minus what was already paid this tick, so splitting
 // a change into several writes does not save mana.
-func (d *bodyDevice) writeVelocity(axis int, dst *int32, v int32) {
+func (d *bodyDevice) writeVelocity(off uint32, axis int, dst *int32, rawV uint32) {
 	if d.changedTick != d.match.Tick {
 		d.changed, d.changedTick = [2]int64{}, d.match.Tick
 	}
-	v = min(max(v, -world.MaxSpeed), world.MaxSpeed)
+	v := min(max(int32(rawV), -world.MaxSpeed), world.MaxSpeed)
 	delta := int64(v) - int64(*dst)
 	if delta < 0 {
 		delta = -delta
@@ -345,5 +365,8 @@ func (d *bodyDevice) writeVelocity(axis int, dst *int32, v int32) {
 		return
 	}
 	d.changed[axis] = total
+	if !d.notifyDefense(off, rawV) {
+		return
+	}
 	*dst = v
 }
