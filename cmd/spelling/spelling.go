@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/haruki7049/spelling/internal/game"
 	"github.com/haruki7049/spelling/internal/match"
+	"github.com/haruki7049/spelling/internal/world"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 	opponentELF := flag.String("opponent-elf", "", "RISC-V ELF to run as the CPU opponent (default: an idle opponent)")
 	flag.Parse()
 
-	var elfs [2][]byte
+	var elfs [world.NumPlayers][]byte
 	for i, path := range []string{*playerELF, *opponentELF} {
 		if path == "" {
 			continue

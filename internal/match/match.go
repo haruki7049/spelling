@@ -85,7 +85,7 @@ var idleProgram = [...]uint32{0x10500073, 0xffdff06f}
 // Match is a running match between players 0 and 1.
 type Match struct {
 	World    *world.World
-	Machines [2]*machine.Machine
+	Machines [world.NumPlayers]*machine.Machine
 	Tick     uint32
 
 	// CoinFlip decides who goes first on a tie; true means player 0.
@@ -99,18 +99,18 @@ type Match struct {
 
 	result Result
 
-	spentThisTick [2]int32
-	spentHistory  [2][TicksPerSecond]int32
-	spentSum      [2]int32
+	spentThisTick [world.NumPlayers]int32
+	spentHistory  [world.NumPlayers][TicksPerSecond]int32
+	spentSum      [world.NumPlayers]int32
 
 	// pendingWrites[writer] holds writer's queued writes awaiting their
 	// grace period (see pending_writes.go).
-	pendingWrites [2][]PendingWrite
+	pendingWrites [world.NumPlayers][]PendingWrite
 }
 
 // New returns a match. elfs[i] is player i's program; nil means the idle
 // program, which only runs typed lines.
-func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
+func New(elfs [world.NumPlayers][]byte, coinFlip func() bool) (*Match, error) {
 	m := &Match{World: world.New(), CoinFlip: coinFlip}
 	for i := range m.Machines {
 		body := &m.World.Bodies[i]
@@ -127,7 +127,7 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 			}
 		}
 		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: i, factor: 1, writer: i, target: i})
-		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: i, factor: OpponentCostFactor, writer: i, target: 1 - i})
+		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[world.NumPlayers-1-i], payer: i, factor: OpponentCostFactor, writer: i, target: world.NumPlayers - 1 - i})
 		mc.PayAssembler = func() bool { return m.pay(i, CostAssembler) }
 		m.Machines[i] = mc
 	}
@@ -240,7 +240,7 @@ type bodyDevice struct {
 
 	// changed is the total |change| of vx and vy written through this
 	// device during tick changedTick; velocity costs are charged on it.
-	changed     [2]int64
+	changed     [world.NumPlayers]int64
 	changedTick uint32
 }
 
@@ -353,7 +353,7 @@ func (d *bodyDevice) velocityWriteCost(axis int, current, target int32) (cost, t
 // a change into several writes does not save mana.
 func (d *bodyDevice) writeVelocity(off uint32, axis int, dst *int32, rawV uint32) {
 	if d.changedTick != d.match.Tick {
-		d.changed, d.changedTick = [2]int64{}, d.match.Tick
+		d.changed, d.changedTick = [world.NumPlayers]int64{}, d.match.Tick
 	}
 	v := min(max(int32(rawV), -world.MaxSpeed), world.MaxSpeed)
 	cost, total := d.velocityWriteCost(axis, *dst, v)
