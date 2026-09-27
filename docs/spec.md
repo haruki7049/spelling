@@ -189,6 +189,7 @@ While System `+0x18` is 0, printable ASCII characters (`0x20`-`0x7E`) are insert
 | `kill-word-backward` | Delete the word before the cursor | Ctrl+W |
 | `history-prev` / `history-next` | Recall earlier lines (practice only) | Up / Down |
 | `example-1`...`example-3` | Insert an example spell (practice only) | F1-F3 |
+| `rematch` | Start a new match after one is decided (table `[match]`) | R |
 
 Practice-only actions skip typing, so they only work with the `-practice` option.
 
@@ -279,6 +280,21 @@ Without `-elf`, the player runs the idle program from [Mana](#7-mana) at address
   1. Grounded is updated (on the floor or on the other body). Facing follows the sign of vx, unless a facing written with mana is still holding.
 - HP starts at 100 *(tentative, `world.MaxHP`)* and never goes below 0.
 - **Impact damage**: whenever a body's velocity changes in an impact (hitting the stage, or a collision with the other body), the change in speed above 16 units per tick *(tentative, `world.DamageThreshold`)* is subtracted from HP, 1 HP per 1.0 of speed. A normal jump lands at about 12 and does no damage; a wall hit at the max speed of 64 deals 48. Ramming a standing body at 64 moves both at about 32, and both take 15.
-- Winning and losing are not implemented yet.
+- Winning and losing: see [Winning and losing](#11-winning-and-losing).
 
+## 11. Winning and losing
+
+The match is judged at the end of every tick, after the world step:
+
+| Situation | Result |
+| --- | --- |
+| One player's HP is 0 | That player loses |
+| Both players' HP reach 0 in the same tick | Draw |
+| One player is depleted | Not a loss; the match continues |
+| Both players are depleted | Draw |
+| The time limit is reached | The player with more HP wins; equal HP is a draw |
+
+The time limit is 3 minutes (10,800 ticks) *(tentative, `match.TimeLimitTicks`)*. Both players have the same max HP, so comparing HP is the same as comparing HP ratios. Once decided, the match stops, a result screen is shown, and the `rematch` key starts a new match.
+
+Note: a key binding file written before an action existed does not bind it. For example, a file from before `rematch` leaves it unbound; add the key to `[match]` or delete the file to get the new defaults.
 Any velocity can be written, but physics clamps it on the next step, so extreme values cannot overflow or move a body more than 64 units per tick.

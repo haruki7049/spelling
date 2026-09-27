@@ -43,7 +43,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	m, err := match.New(elfs, func() bool { return rand.IntN(2) == 0 })
+	newMatch := func() (*match.Match, error) {
+		return match.New(elfs, func() bool { return rand.IntN(2) == 0 })
+	}
+	scene, err := game.NewMatchScene(newMatch, keys, *practice)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -53,7 +56,7 @@ func main() {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeDisabled)
 	ebiten.SetTPS(match.TicksPerSecond)
 
-	if err := ebiten.RunGame(game.NewGame(game.NewMatchScene(m, keys, *practice))); err != nil {
+	if err := ebiten.RunGame(game.NewGame(scene)); err != nil {
 		log.Fatal(err)
 	}
 }

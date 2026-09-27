@@ -85,6 +85,8 @@ type Match struct {
 	// CoinFlip decides who goes first on a tie; true means player 0.
 	// It is the only randomness in the game.
 	CoinFlip func() bool
+
+	result Result
 }
 
 // New returns a match. elfs[i] is player i's program; nil means the idle
@@ -113,8 +115,11 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 	return m, nil
 }
 
-// Step runs one tick.
+// Step runs one tick. It does nothing once the match is decided.
 func (m *Match) Step() {
+	if m.result != Ongoing {
+		return
+	}
 	first := m.first()
 	for _, mc := range m.Machines {
 		mc.Tick = m.Tick
@@ -133,6 +138,7 @@ func (m *Match) Step() {
 		}
 	}
 	m.Tick++
+	m.result = m.judge()
 }
 
 // first returns the player who goes first this tick.

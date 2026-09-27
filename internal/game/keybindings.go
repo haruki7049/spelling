@@ -39,9 +39,11 @@ const (
 	actExample1
 	actExample2
 	actExample3
+	actRematch
 )
 
-// editorActions and practiceActions name the actions of each table.
+// editorActions, practiceActions, and matchActions name the actions of each
+// table.
 var (
 	editorActions = map[string]action{
 		"submit":             actSubmit,
@@ -60,6 +62,9 @@ var (
 		"example-1":    actExample1,
 		"example-2":    actExample2,
 		"example-3":    actExample3,
+	}
+	matchActions = map[string]action{
+		"rematch": actRematch,
 	}
 )
 
@@ -149,6 +154,7 @@ func ParseKeyBindings(data []byte) (*KeyBindings, error) {
 	var file struct {
 		Editor   map[string][]string `toml:"editor"`
 		Practice map[string][]string `toml:"practice"`
+		Match    map[string][]string `toml:"match"`
 	}
 	md, err := toml.Decode(string(data), &file)
 	if err != nil {
@@ -164,7 +170,11 @@ func ParseKeyBindings(data []byte) (*KeyBindings, error) {
 		name    string
 		entries map[string][]string
 		actions map[string]action
-	}{{"editor", file.Editor, editorActions}, {"practice", file.Practice, practiceActions}} {
+	}{
+		{"editor", file.Editor, editorActions},
+		{"practice", file.Practice, practiceActions},
+		{"match", file.Match, matchActions},
+	} {
 		names := make([]string, 0, len(table.entries))
 		for name := range table.entries {
 			names = append(names, name)

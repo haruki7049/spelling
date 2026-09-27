@@ -15,7 +15,7 @@ func TestDefaultKeyBindingsBindEveryAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []map[string]action{editorActions, practiceActions} {
+	for _, table := range []map[string]action{editorActions, practiceActions, matchActions} {
 		for name, a := range table {
 			if len(kb.keysFor(a)) == 0 {
 				t.Errorf("default file leaves %q unbound", name)
@@ -117,5 +117,30 @@ func TestLoadKeyBindingsInvalidFileNamesPath(t *testing.T) {
 func TestCtrlByte(t *testing.T) {
 	if ctrlByte(ebiten.KeyA) != 0x01 || ctrlByte(ebiten.KeyW) != 0x17 || ctrlByte(ebiten.KeyZ) != 0x1a {
 		t.Error("wrong control characters")
+	}
+}
+
+func TestRematchKey(t *testing.T) {
+	kb, err := ParseKeyBindings([]byte("[match]\nrematch = [\"f5\"]"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(kb.keysFor(actRematch), "/"); got != "f5" {
+		t.Errorf("rematch keys = %q, want f5", got)
+	}
+}
+
+// Regression (current behavior, not a decision): a key binding file written
+// before an action existed does not bind it. A file from before the rematch
+// action leaves rematch unbound, so a decided match cannot be restarted
+// until the player adds the key or deletes the file.
+func TestOldFileLeavesNewActionsUnbound(t *testing.T) {
+	old, _, _ := strings.Cut(string(DefaultKeyBindings), "[match]")
+	kb, err := ParseKeyBindings([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if keys := kb.keysFor(actRematch); len(keys) != 0 {
+		t.Errorf("rematch keys = %v; current behavior leaves it unbound", keys)
 	}
 }
