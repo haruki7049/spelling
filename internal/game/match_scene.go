@@ -162,8 +162,8 @@ func (s *MatchScene) Draw(screen *ebiten.Image) {
 
 	me, opp := s.match.World.Bodies[0], s.match.World.Bodies[1]
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("You       HP %d  %s  x %.1f y %.1f  vx %.2f vy %.2f",
-		me.HP, manaText(me, s.match.ManaSpentPerSecond(0)), fixed(me.X), fixed(me.Y), fixed(me.VX), fixed(me.VY)), 8, 8)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Opponent  HP %d  %s", opp.HP, manaText(opp, s.match.ManaSpentPerSecond(1))), 8, 24)
+		me.HP, manaText(me, s.match.ManaSpentPerSecond(0), s.match.InfiniteMana), fixed(me.X), fixed(me.Y), fixed(me.VX), fixed(me.VY)), 8, 8)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Opponent  HP %d  %s", opp.HP, manaText(opp, s.match.ManaSpentPerSecond(1), s.match.InfiniteMana)), 8, 24)
 	ebitenutil.DebugPrintAt(screen, s.help, 8, 48)
 
 	line, cursor := s.match.Machines[0].Line()
@@ -213,8 +213,11 @@ func fixed(v int32) float64 {
 	return float64(v) / world.One
 }
 
-// manaText shows a body's mana and spent rate, or that it is depleted.
-func manaText(b world.Body, spentPerSec int32) string {
+// manaText shows a body's mana and spent rate, or that it is depleted or infinite.
+func manaText(b world.Body, spentPerSec int32, infinite bool) string {
+	if infinite {
+		return fmt.Sprintf("mana INF (spent %d/s)", spentPerSec)
+	}
 	if b.Depleted {
 		return "mana DEPLETED"
 	}

@@ -339,3 +339,40 @@ func TestManaSpentPerSecondIgnoresUnaffordableWrites(t *testing.T) {
 		t.Fatalf("mana spent after unaffordable write = %d, want 1", got)
 	}
 }
+
+func TestInfiniteManaNeverDepletesAndAllowsExpensiveWrites(t *testing.T) {
+	m := newMatch(t)
+	m.InfiniteMana = true
+	m.World.Bodies[0].Mana = 10 // Not enough for busy loop or large writes
+
+	load(t, m, 0, busyLoop)
+	m.Step()
+	b := &m.World.Bodies[0]
+	if b.Depleted {
+		t.Fatalf("depleted with infinite mana, want not depleted")
+	}
+	if b.Mana != 10+ManaRegen {
+		t.Fatalf("mana = %d, want preserved at %d", b.Mana, 10+ManaRegen)
+	}
+
+	// Writing velocity MaxSpeed costs 6400 (way above 10 mana).
+	spent := velocityWrite(t, m, OwnBodyBase, 64<<16)
+	if spent != 0 {
+		t.Fatalf("spent from b.Mana = %d, want 0 (infinite mana doesn't deduct)", spent)
+	}
+	if b.VX != 64<<16 {
+		t.Fatalf("vx = %d, want 64.0 (write succeeded)", b.VX)
+	}
+}
+
+func TestInfiniteManaStillTracksManaSpentPerSecond(t *testing.T) {
+	m := newMatch(t)
+	m.InfiniteMana = true
+	// Write velocity 8.0: costs 100 mana.
+	velocityWrite(t, m, OwnBodyBase, 8<<16)
+	m.Step()
+	// 100 from velocity write + 1 from idle instruction = 101.
+	if got := m.ManaSpentPerSecond(0); got != 101 {
+		t.Fatalf("mana spent with infinite mana = %d, want 101", got)
+	}
+}

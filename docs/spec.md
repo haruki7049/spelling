@@ -238,6 +238,7 @@ Reading is free.
 
 - **Unaffordable writes** are ignored and cost nothing.
 - **Depletion**: a player who cannot pay for the next instruction is depleted for good. Their CPU stops, their body's velocity becomes 0 (movement effects disappear), and their mana never regenerates.
+- **Practice option (`-infinite-mana`)**: both players have infinite mana so spells can be tested freely without depletion. Writes and instructions always succeed, reading a body's mana returns `MaxMana`, and the HUD displays `mana INF (spent .../s)` to continue showing real expenditure for learning and tuning.
 - **Idling**: a program with nothing to do should wait with `WFI`, which spends no mana for the rest of the tick:
 
 ```asm
