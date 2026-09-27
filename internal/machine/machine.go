@@ -139,6 +139,8 @@ type Machine struct {
 	asmSource, asmSourceLen, asmOutput, asmOutputCap uint32
 	asmStatus, asmOutputLen, asmErrorLine            uint32
 
+	Watches [WatchEntries]WatchEntry
+
 	devices []region
 }
 
