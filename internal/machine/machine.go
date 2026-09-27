@@ -128,7 +128,7 @@ type Machine struct {
 
 	// PayAssembler is called once per assembler window call and reports
 	// whether the fixed cost was paid. Nil means the call is free.
-	// Mana does not exist yet; this is where it will be charged.
+	// In match play, this is hooked up to deduct mana (CostAssembler in internal/match).
 	PayAssembler func() bool
 
 	remaining int
