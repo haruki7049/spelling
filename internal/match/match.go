@@ -102,6 +102,10 @@ type Match struct {
 	spentThisTick [2]int32
 	spentHistory  [2][TicksPerSecond]int32
 	spentSum      [2]int32
+
+	// pendingWrites[writer] holds writer's queued writes awaiting their
+	// grace period (see pending_writes.go).
+	pendingWrites [2][]PendingWrite
 }
 
 // New returns a match. elfs[i] is player i's program; nil means the idle
@@ -146,6 +150,7 @@ func (m *Match) Step() {
 			break
 		}
 	}
+	m.resolvePendingWrites()
 	m.World.Step()
 	for i := range m.World.Bodies {
 		if b := &m.World.Bodies[i]; !b.Depleted {
@@ -316,20 +321,7 @@ func (d *bodyDevice) WriteReg(off, v uint32) {
 	if !d.notifyDefense(off, v) {
 		return
 	}
-	b := d.body
-	switch off {
-	case BodyX:
-		b.X = int32(v)
-	case BodyY:
-		b.Y = int32(v)
-	case BodyFacing:
-		if int32(v) < 0 {
-			b.Facing = -1
-		} else {
-			b.Facing = 1
-		}
-		b.FacingHold = world.ManaHoldTicks
-	}
+	applyBodyWrite(d.body, off, v)
 }
 
 // maxChangeForCost caps the accumulated change so squaring cannot overflow;
