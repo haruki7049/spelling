@@ -12,7 +12,7 @@ ______________________________________________________________________
 - **Target Language Version**: Go as declared by the `go` directive in `go.mod`. Go module dependencies are pinned for Nix in `gomod2nix.toml`, which must be kept in sync with `go.mod`/`go.sum`.
 - **Directory Structure**:
   - `cmd/spelling/spelling.go`: Application entry point (window setup and `ebiten.RunGame`). Run with `go run ./cmd/spelling`.
-  - `internal/game/`: Game logic (`game.go`: `Game` type and window constants, `scene.go`: scene abstraction, `match_scene.go`: match screen and keyboard input).
+  - `internal/game/`: Game logic (`game.go`: `Game` type and window constants, `scene.go`: scene abstraction, `match_scene.go`: match screen, `input.go`: keyboard input and terminal encoding, `keybindings.go` + `keybindings.toml`: key binding file loading and the embedded default, `history.go`: practice input history).
   - `internal/vm/`: Virtual CPU that runs Idea, the in-game RISC-V RV32I machine code (`cpu.go`: instruction execution, `bus.go`: memory interface and RAM, `elf.go`: validating ELF loader). Game-specific behavior is tracked in issue #15.
   - `internal/asm/`: Built-in assembler that turns typed text into Idea (RISC-V assembly with common pseudo-instructions and labels).
   - `internal/machine/`: One player's machine: CPU, memory map (System, Keyboard, assembler window, immediate-code region), keyboard input, and interrupts. The register layout is documented in the package comment.

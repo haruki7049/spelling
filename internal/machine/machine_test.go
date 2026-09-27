@@ -290,7 +290,12 @@ func FuzzMachine(f *testing.F) {
 		m := New(0x1000, 0)
 		copy(m.RAM, ram)
 		for i := range len(input) {
-			m.Type(input[i])
+			// Bytes below 0x10 stand for line editor actions.
+			if c := input[i]; c < 0x10 {
+				m.Edit(EditAction(c % 9))
+			} else {
+				m.Type(c)
+			}
 			m.Run(8)
 		}
 		m.Run(64)
