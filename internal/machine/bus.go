@@ -12,27 +12,42 @@ type Device interface {
 
 type region struct {
 	base, size uint32
+	dev        Device
 	// read returns a register. With peek set, it must not have side effects.
 	read  func(m *Machine, off uint32, peek bool) uint32
 	write func(m *Machine, off, v uint32)
 }
 
+func (r *region) readReg(m *Machine, off uint32, peek bool) uint32 {
+	if r.dev != nil {
+		return r.dev.ReadReg(off)
+	}
+	return r.read(m, off, peek)
+}
+
+func (r *region) writeReg(m *Machine, off, v uint32) {
+	if r.dev != nil {
+		r.dev.WriteReg(off, v)
+		return
+	}
+	r.write(m, off, v)
+}
+
 var regions = []region{
-	{SystemBase, systemSize, (*Machine).readSystem, (*Machine).writeSystem},
-	{KeyboardBase, keyboardSize, (*Machine).readKeyboard, (*Machine).writeKeyboard},
-	{WatchBase, watchSize, (*Machine).readWatch, (*Machine).writeWatch},
-	{DefenseBase, defenseSize, (*Machine).readDefense, (*Machine).writeDefense},
-	{AssemblerBase, assemblerSize, (*Machine).readAssembler, (*Machine).writeAssembler},
+	{base: SystemBase, size: systemSize, read: (*Machine).readSystem, write: (*Machine).writeSystem},
+	{base: KeyboardBase, size: keyboardSize, read: (*Machine).readKeyboard, write: (*Machine).writeKeyboard},
+	{base: WatchBase, size: watchSize, read: (*Machine).readWatch, write: (*Machine).writeWatch},
+	{base: DefenseBase, size: defenseSize, read: (*Machine).readDefense, write: (*Machine).writeDefense},
+	{base: AssemblerBase, size: assemblerSize, read: (*Machine).readAssembler, write: (*Machine).writeAssembler},
 }
 
 // Map maps dev at [base, base+size). base and size must be multiples of 4
 // and must not overlap RAM, the built-in regions, or another device.
 func (m *Machine) Map(base, size uint32, dev Device) {
 	m.devices = append(m.devices, region{
-		base:  base,
-		size:  size,
-		read:  func(_ *Machine, off uint32, _ bool) uint32 { return dev.ReadReg(off) },
-		write: func(_ *Machine, off, v uint32) { dev.WriteReg(off, v) },
+		base: base,
+		size: size,
+		dev:  dev,
 	})
 }
 
@@ -81,7 +96,7 @@ func (m *Machine) Read(addr uint32, size int) uint32 {
 			continue
 		}
 		reg := a &^ 3
-		word := r.read(m, reg-r.base, false)
+		word := r.readReg(m, reg-r.base, false)
 		for ; i < size && (addr+uint32(i))&^3 == reg; i++ {
 			v |= (word >> (8 * ((addr + uint32(i)) & 3)) & 0xff) << (8 * i)
 		}
@@ -106,12 +121,12 @@ func (m *Machine) Write(addr uint32, size int, value uint32) {
 			continue
 		}
 		reg := a &^ 3
-		word := r.read(m, reg-r.base, true)
+		word := r.readReg(m, reg-r.base, true)
 		for ; i < size && (addr+uint32(i))&^3 == reg; i++ {
 			shift := 8 * ((addr + uint32(i)) & 3)
 			word = word&^(0xff<<shift) | (value>>(8*i)&0xff)<<shift
 		}
-		r.write(m, reg-r.base, word)
+		r.writeReg(m, reg-r.base, word)
 	}
 }
 
