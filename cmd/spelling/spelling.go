@@ -42,6 +42,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	for _, m := range keys.Missing() {
+		log.Printf("%s: %s", keyPath, m)
+	}
 
 	newMatch := func() (*match.Match, error) {
 		return match.New(elfs, func() bool { return rand.IntN(2) == 0 })

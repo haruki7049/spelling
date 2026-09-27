@@ -139,6 +139,9 @@ func (s *MatchScene) helpText() string {
 	if s.practice {
 		fmt.Fprintf(&b, "\nPractice: history %s / %s", s.keyNames(actHistoryPrev), s.keyNames(actHistoryNext))
 	}
+	for _, m := range s.keys.Missing() {
+		fmt.Fprintf(&b, "\nWarning: %s", m)
+	}
 	return b.String()
 }
 

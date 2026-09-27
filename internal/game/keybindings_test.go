@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/haruki7049/spelling/internal/match"
 )
 
 func TestDefaultKeyBindingsBindEveryAction(t *testing.T) {
@@ -142,5 +143,58 @@ func TestOldFileLeavesNewActionsUnbound(t *testing.T) {
 	}
 	if keys := kb.keysFor(actRematch); len(keys) != 0 {
 		t.Errorf("rematch keys = %v; current behavior leaves it unbound", keys)
+	}
+}
+
+func TestMissingActionsAreReported(t *testing.T) {
+	old, _, _ := strings.Cut(string(DefaultKeyBindings), "[match]")
+	kb, err := ParseKeyBindings([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := kb.Missing()
+	if len(got) != 1 || got[0].Action != "rematch" || strings.Join(got[0].DefaultKeys, "/") != "r" {
+		t.Errorf("Missing() = %+v, want only rematch with default r", got)
+	}
+	if msg := got[0].String(); msg != `key binding for "rematch" is missing; add rematch = ["r"] under [match]` {
+		t.Errorf("message = %q", msg)
+	}
+}
+
+func TestNothingMissingFromTheDefaultFile(t *testing.T) {
+	kb, err := ParseKeyBindings(DefaultKeyBindings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := kb.Missing(); len(got) != 0 {
+		t.Errorf("Missing() = %+v, want none", got)
+	}
+}
+
+func TestEmptyListIsNotReportedAsMissing(t *testing.T) {
+	src := strings.Replace(string(DefaultKeyBindings), `rematch = ["r"]`, `rematch = []`, 1)
+	kb, err := ParseKeyBindings([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := kb.Missing(); len(got) != 0 {
+		t.Errorf("Missing() = %+v; an empty list unbinds on purpose", got)
+	}
+}
+
+func TestHelpShowsMissingActions(t *testing.T) {
+	old, _, _ := strings.Cut(string(DefaultKeyBindings), "[match]")
+	kb, err := ParseKeyBindings([]byte(old))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewMatchScene(func() (*match.Match, error) {
+		return match.New([2][]byte{}, func() bool { return true })
+	}, kb, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s.help, `key binding for "rematch" is missing`) {
+		t.Errorf("help does not mention the missing rematch key:\n%s", s.help)
 	}
 }

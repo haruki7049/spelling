@@ -296,5 +296,5 @@ The match is judged at the end of every tick, after the world step:
 
 The time limit is 3 minutes (10,800 ticks) *(tentative, `match.TimeLimitTicks`)*. Both players have the same max HP, so comparing HP is the same as comparing HP ratios. Once decided, the match stops, a result screen is shown, and the `rematch` key starts a new match.
 
-Note: a key binding file written before an action existed does not bind it. For example, a file from before `rematch` leaves it unbound; add the key to `[match]` or delete the file to get the new defaults.
+Note: a key binding file written before an action existed does not bind it, and the game never rewrites the file. Instead, every action missing from the file is reported at startup (on stderr) and in the HUD, with its default keys. For example, a file from before `rematch` shows: `key binding for "rematch" is missing; add rematch = ["r"] under [match]`. An action listed with an empty list is unbound on purpose and is not reported.
 Any velocity can be written, but physics clamps it on the next step, so extreme values cannot overflow or move a body more than 64 units per tick.
