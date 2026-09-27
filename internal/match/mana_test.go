@@ -81,10 +81,10 @@ func TestWriteCosts(t *testing.T) {
 		src  string
 		want int32
 	}{
-		{"own velocity", "lui t0, 0x10002; li t1, 0x10000; sw t1, 8(t0)", CostOwnMotion},
-		{"own facing", "lui t0, 0x10002; li t1, -1; sw t1, 16(t0)", CostOwnMotion},
+		{"own velocity 8.0", "lui t0, 0x10002; li t1, 0x80000; sw t1, 8(t0)", 100},
+		{"own facing", "lui t0, 0x10002; li t1, -1; sw t1, 16(t0)", CostOwnFacing},
 		{"own position", "lui t0, 0x10002; li t1, 0x10000; sw t1, 0(t0)", CostOwnPosition},
-		{"opponent velocity", "lui t0, 0x10003; li t1, 0x10000; sw t1, 8(t0)", CostOwnMotion * OpponentCostFactor},
+		{"opponent velocity 8.0", "lui t0, 0x10003; li t1, 0x80000; sw t1, 8(t0)", 100 * OpponentCostFactor},
 		{"opponent position", "lui t0, 0x10003; li t1, 0x10000; sw t1, 0(t0)", CostOwnPosition * OpponentCostFactor},
 		{"read-only register", "lui t0, 0x10002; li t1, 5; sw t1, 0x18(t0)", 0},
 		{"reading is free", "lui t0, 0x10003; lw t1, 0(t0)", 0},
@@ -131,7 +131,7 @@ func TestUnaffordableWriteIsIgnoredAndFree(t *testing.T) {
 func TestDepletion(t *testing.T) {
 	m := newMatch(t)
 	load(t, m, 0, "lui t0, 0x10002; li t1, 0x40000; sw t1, 8(t0); loop: addi s0, s0, 1; j loop")
-	m.World.Bodies[0].Mana = CostOwnMotion + 100 // runs out during the first tick
+	m.World.Bodies[0].Mana = 200 // the vx 4.0 write costs 25; runs out during the first tick
 	m.Step()
 
 	b := m.World.Bodies[0]

@@ -19,9 +19,9 @@
 //	0x1000_3000  opponent body
 //	  +0x00  x           read-write (CostOwnPosition)
 //	  +0x04  y           read-write (CostOwnPosition)
-//	  +0x08  vx          read-write, per tick (CostOwnMotion)
-//	  +0x0c  vy          read-write, per tick (CostOwnMotion)
-//	  +0x10  facing      read-write, 1 = right, -1 = left (CostOwnMotion)
+//	  +0x08  vx          read-write, per tick (squared change, see writeVelocity)
+//	  +0x0c  vy          read-write, per tick (squared change, see writeVelocity)
+//	  +0x10  facing      read-write, 1 = right, -1 = left (CostOwnFacing)
 //	  +0x14  grounded    read-only, 0 or 1
 //	  +0x18  HP          read-only (integer)
 //	  +0x1c  max HP      read-only (integer)
@@ -31,6 +31,8 @@
 package match
 
 import (
+	"math"
+
 	"github.com/haruki7049/spelling/internal/machine"
 	"github.com/haruki7049/spelling/internal/world"
 )
@@ -44,13 +46,17 @@ const (
 
 // Tentative mana numbers (see issue #15). Tune them here.
 const (
-	MaxMana            = 600_000 // about 10 s of full-speed execution
-	ManaRegen          = 500     // per tick, unless depleted
-	InstructionCost    = 1       // per executed instruction
-	CostOwnMotion      = 1_000   // writing own velocity or facing
-	CostOwnPosition    = 10_000  // writing own position (teleport)
-	OpponentCostFactor = 10      // writing the opponent's body costs this many times more
-	CostAssembler      = 2_000   // per built-in assembler window call
+	MaxMana         = 600_000 // about 10 s of full-speed execution
+	ManaRegen       = 500     // per tick, unless depleted
+	InstructionCost = 1       // per executed instruction
+	CostOwnFacing   = 1_000   // writing own facing
+	// Velocity writes cost VelocityCostNum/VelocityCostDen mana per (speed
+	// change)², where the change is accumulated per tick (see velocityCost).
+	VelocityCostNum    = 25
+	VelocityCostDen    = 16     // 25/16 per speed² makes a change of 64 cost 6,400
+	CostOwnPosition    = 10_000 // writing own position (teleport)
+	OpponentCostFactor = 10     // writing the opponent's body costs this many times more
+	CostAssembler      = 2_000  // per built-in assembler window call
 )
 
 // Body region addresses and offsets.
@@ -107,8 +113,8 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 				mc.RAM.Write(uint32(4*j), 4, w)
 			}
 		}
-		mc.Map(OwnBodyBase, bodySize, &bodyDevice{body: body, payer: body, factor: 1})
-		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor})
+		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: body, factor: 1})
+		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor})
 		mc.PayAssembler = func() bool { return pay(body, CostAssembler) }
 		m.Machines[i] = mc
 	}
@@ -189,9 +195,15 @@ func deplete(b *world.Body, mc *machine.Machine) {
 // bodyDevice maps a body into a player's memory. Writes are paid by payer
 // at factor times the own-body cost.
 type bodyDevice struct {
+	match  *Match
 	body   *world.Body
 	payer  *world.Body
 	factor int32
+
+	// changed is the total |change| of vx and vy written through this
+	// device during tick changedTick; velocity costs are charged on it.
+	changed     [2]int64
+	changedTick uint32
 }
 
 func (d *bodyDevice) ReadReg(off uint32) uint32 {
@@ -231,13 +243,21 @@ func writeCost(off uint32) int32 {
 	switch off {
 	case BodyX, BodyY:
 		return CostOwnPosition
-	case BodyVX, BodyVY, BodyFacing:
-		return CostOwnMotion
+	case BodyFacing:
+		return CostOwnFacing
 	}
 	return 0
 }
 
 func (d *bodyDevice) WriteReg(off, v uint32) {
+	switch off {
+	case BodyVX:
+		d.writeVelocity(0, &d.body.VX, int32(v))
+		return
+	case BodyVY:
+		d.writeVelocity(1, &d.body.VY, int32(v))
+		return
+	}
 	cost := writeCost(off)
 	if cost == 0 || !pay(d.payer, cost*d.factor) {
 		return
@@ -248,10 +268,6 @@ func (d *bodyDevice) WriteReg(off, v uint32) {
 		b.X = int32(v)
 	case BodyY:
 		b.Y = int32(v)
-	case BodyVX:
-		b.VX = int32(v)
-	case BodyVY:
-		b.VY = int32(v)
 	case BodyFacing:
 		if int32(v) < 0 {
 			b.Facing = -1
@@ -260,4 +276,37 @@ func (d *bodyDevice) WriteReg(off, v uint32) {
 		}
 		b.FacingHold = world.ManaHoldTicks
 	}
+}
+
+// maxChangeForCost caps the accumulated change so squaring cannot overflow;
+// a change this large is never affordable anyway.
+const maxChangeForCost = 4096 * world.One
+
+// velocityCost is the own-body cost of a total speed change of change
+// (16.16) within one tick.
+func velocityCost(change int64) int64 {
+	change = min(change, maxChangeForCost)
+	return change * change * VelocityCostNum / (VelocityCostDen * world.One * world.One)
+}
+
+// writeVelocity writes a velocity (clamped to the speed limit). The cost is
+// the square of the total change written to this axis through this device
+// in the current tick, minus what was already paid this tick, so splitting
+// a change into several writes does not save mana.
+func (d *bodyDevice) writeVelocity(axis int, dst *int32, v int32) {
+	if d.changedTick != d.match.Tick {
+		d.changed, d.changedTick = [2]int64{}, d.match.Tick
+	}
+	v = min(max(v, -world.MaxSpeed), world.MaxSpeed)
+	delta := int64(v) - int64(*dst)
+	if delta < 0 {
+		delta = -delta
+	}
+	total := d.changed[axis] + delta
+	cost := (velocityCost(total) - velocityCost(d.changed[axis])) * int64(d.factor)
+	if cost > int64(math.MaxInt32) || !pay(d.payer, int32(cost)) {
+		return
+	}
+	d.changed[axis] = total
+	*dst = v
 }

@@ -81,15 +81,17 @@ Both regions have the same layout: `0x1000_2000` is your body and `0x1000_3000` 
 | --- | --- | --- | --- | --- |
 | `+0x00` | x (left edge) | 16.16 | read-write | 10,000 *(`match.CostOwnPosition`)* |
 | `+0x04` | y (bottom edge) | 16.16 | read-write | 10,000 |
-| `+0x08` | vx, per tick (clamped to ±64.0 by physics) | 16.16 | read-write | 1,000 *(`match.CostOwnMotion`)* |
-| `+0x0C` | vy, per tick (clamped to ±64.0 by physics) | 16.16 | read-write | 1,000 |
-| `+0x10` | Facing: 1 = right, -1 = left (a negative write means left) | integer | read-write | 1,000 |
+| `+0x08` | vx, per tick (clamped to ±64.0) | 16.16 | read-write | Square of the change; see below |
+| `+0x0C` | vy, per tick (clamped to ±64.0) | 16.16 | read-write | Square of the change; see below |
+| `+0x10` | Facing: 1 = right, -1 = left (a negative write means left) | integer | read-write | 1,000 *(`match.CostOwnFacing`)* |
 | `+0x14` | Grounded (0 or 1) | integer | read-only | — |
 | `+0x18` | HP | integer | read-only | — |
 | `+0x1C` | Max HP | integer | read-only | — |
 | `+0x20` | Mana | integer | read-only | — |
 | `+0x24` | Max mana | integer | read-only | — |
 | `+0x28` | Mana regeneration per tick | integer | read-only | — |
+
+**Velocity write cost.** A written velocity is first clamped to ±64.0. Its cost grows with the **square of the speed change**: 25/16 mana per (change)² *(tentative, `match.VelocityCostNum`/`VelocityCostDen`)*, so a change of 8 costs 100, 32 costs 1,600, and 64 costs 6,400 (times 10 for the opponent). The change is **accumulated per tick** for each writer, body, and axis, and each write pays the difference between the cost of the new total and what was already paid this tick. Splitting a change into several writes in one tick therefore costs the same as one write, and going to 32 and back to 0 counts as a change of 64. Accelerating over several ticks is cheaper. Writing the current velocity is free.
 
 Physics sets facing from the sign of vx, but a facing written with mana **holds for 20 ticks** *(tentative, `world.ManaHoldTicks`)* before physics takes over again. Writing it again restarts the count. This follows a general rule: a value paid for with mana beats physics for a while.
 
