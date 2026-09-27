@@ -13,7 +13,8 @@ import (
 
 func main() {
 	playerELF := flag.String("elf", "", "RISC-V ELF to load as your language implementation (default: none, type raw Idea)")
-	practice := flag.Bool("practice", false, "enable practice-only input features (history) that skip typing")
+	practice := flag.Bool("practice", false, "enable practice-only keys (history, examples) that skip typing")
+	config := flag.String("config", "", "key binding file (default: keybindings.toml in the user config directory; created if missing)")
 	opponentELF := flag.String("opponent-elf", "", "RISC-V ELF to run as the CPU opponent (default: an idle opponent)")
 	flag.Parse()
 
@@ -29,6 +30,19 @@ func main() {
 		elfs[i] = data
 	}
 
+	keyPath := *config
+	if keyPath == "" {
+		p, err := game.DefaultKeyBindingsPath()
+		if err != nil {
+			log.Fatal(err)
+		}
+		keyPath = p
+	}
+	keys, err := game.LoadKeyBindings(keyPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	m, err := match.New(elfs, func() bool { return rand.IntN(2) == 0 })
 	if err != nil {
 		log.Fatal(err)
@@ -39,7 +53,7 @@ func main() {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeDisabled)
 	ebiten.SetTPS(match.TicksPerSecond)
 
-	if err := ebiten.RunGame(game.NewGame(game.NewMatchScene(m, *practice))); err != nil {
+	if err := ebiten.RunGame(game.NewGame(game.NewMatchScene(m, keys, *practice))); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -36,8 +36,9 @@
 //
 // Keyboard: with a handler registered, typed characters go to the keyboard
 // buffer and an interrupt is pending while it is not empty. Without one,
-// characters go to a line editor; Enter assembles the line with the
-// built-in assembler and runs it as an interrupt from the immediate-code
+// printable characters go to a line editor driven by Edit actions (the
+// game binds keys to them from a config file); submitting assembles the
+// line with the built-in assembler and runs it as an interrupt from the immediate-code
 // region, followed by a return.
 package machine
 
@@ -101,22 +102,6 @@ const (
 const (
 	KeyBufferSize      = 256  // keyboard buffer and line editor, in characters
 	MaxAssemblerSource = 4096 // bytes of source per assembler window call
-)
-
-// Control characters with special meaning to the built-in line editor.
-// They are the usual terminal (Emacs/Bash) key bindings, so a language
-// implementation receives the same characters and can reuse or replace them.
-const (
-	CtrlA     = 0x01 // move to the start of the line
-	CtrlB     = 0x02 // move left one character
-	CtrlD     = 0x04 // delete the character under the cursor
-	CtrlE     = 0x05 // move to the end of the line
-	CtrlF     = 0x06 // move right one character
-	Backspace = 0x08 // delete the character before the cursor
-	Enter     = 0x0a // submit the line
-	CtrlU     = 0x15 // delete from the start of the line to the cursor
-	CtrlW     = 0x17 // delete the word before the cursor
-	Delete    = 0x7f // same as Backspace, as sent by most terminals
 )
 
 // returnTrailer is appended to every typed line to return from the
@@ -241,7 +226,10 @@ func (m *Machine) takeInterrupt() {
 	m.CPU.PC = target
 }
 
-// Type delivers one typed character to the machine.
+// Type delivers one typed character to the machine. With a keyboard
+// handler registered, every character (including control characters) goes
+// to the keyboard buffer. Otherwise printable characters are inserted into
+// the line editor, and editing is done with Edit.
 func (m *Machine) Type(c byte) {
 	if m.keyHandler != 0 {
 		if len(m.keys) < KeyBufferSize {
@@ -251,7 +239,7 @@ func (m *Machine) Type(c byte) {
 		}
 		return
 	}
-	m.edit(c)
+	m.insert(c)
 }
 
 // submitLine assembles the edited line. A line that fails to assemble or

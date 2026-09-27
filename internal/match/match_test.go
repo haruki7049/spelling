@@ -3,6 +3,7 @@ package match
 import (
 	"testing"
 
+	"github.com/haruki7049/spelling/internal/machine"
 	"github.com/haruki7049/spelling/internal/world"
 )
 
@@ -20,7 +21,7 @@ func typeLine(m *Match, player int, line string) {
 	for i := range len(line) {
 		m.Machines[player].Type(line[i])
 	}
-	m.Machines[player].Type('\n')
+	m.Machines[player].Edit(machine.EditSubmit)
 }
 
 func TestTypedSpellMovesBody(t *testing.T) {

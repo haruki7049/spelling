@@ -3,10 +3,10 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/haruki7049/spelling/internal/machine"
 	"github.com/haruki7049/spelling/internal/match"
@@ -16,7 +16,7 @@ import (
 // scale converts world units to screen pixels. The world fills the window.
 const scale = float32(WindowWidth) / float32(world.Width/world.One)
 
-// Debug font metrics used to place the cursor.
+// Debug font metrics used to place text and the cursor.
 const (
 	glyphWidth  = 6
 	glyphHeight = 16
@@ -28,114 +28,107 @@ var (
 	cursorColor     = color.RGBA{0xff, 0xff, 0xff, 0xc0}
 )
 
-const help = `Type Idea and press Enter. Examples:
-  lui t0, 0x10002; li t1, 0x80000; sw t1, 8(t0)     # run right (vx = 8.0)
-  lui t0, 0x10002; li t1, -0x80000; sw t1, 8(t0)    # run left
-  lui t0, 0x10002; li t1, 0xc0000; sw t1, 12(t0)    # jump (vy = 12.0)
-Editing: Ctrl+A/E start/end, Left/Right, Ctrl+U/W kill, Ctrl+D delete`
-
-const practiceHelp = "Practice: Up/Down history"
-
-// ctrlKeys maps Ctrl+letter to the control character sent to the machine.
-var ctrlKeys = map[ebiten.Key]byte{
-	ebiten.KeyA: machine.CtrlA,
-	ebiten.KeyB: machine.CtrlB,
-	ebiten.KeyD: machine.CtrlD,
-	ebiten.KeyE: machine.CtrlE,
-	ebiten.KeyF: machine.CtrlF,
-	ebiten.KeyU: machine.CtrlU,
-	ebiten.KeyW: machine.CtrlW,
-}
-
-// editKeys maps editing keys to control characters, with key repeat.
-var editKeys = map[ebiten.Key]byte{
-	ebiten.KeyBackspace:  machine.Backspace,
-	ebiten.KeyDelete:     machine.CtrlD,
-	ebiten.KeyArrowLeft:  machine.CtrlB,
-	ebiten.KeyArrowRight: machine.CtrlF,
-	ebiten.KeyHome:       machine.CtrlA,
-	ebiten.KeyEnd:        machine.CtrlE,
+// examples are the example spells shown in the help and inserted by the
+// practice example keys.
+var examples = [3]struct{ spell, note string }{
+	{"lui t0, 0x10002; li t1, 0x80000; sw t1, 8(t0)", "run right (vx = 8.0)"},
+	{"lui t0, 0x10002; li t1, -0x80000; sw t1, 8(t0)", "run left"},
+	{"lui t0, 0x10002; li t1, 0xc0000; sw t1, 12(t0)", "jump (vy = 12.0)"},
 }
 
 // MatchScene plays a match. The keyboard drives player 0.
 type MatchScene struct {
 	match *match.Match
-	// practice enables features that skip typing (history), which are not
-	// allowed in real matches.
+	keys  *KeyBindings
+	// practice enables actions that skip typing (history, examples), which
+	// are not allowed in real matches.
 	practice bool
 	history  history
+	help     string
 }
 
-// NewMatchScene returns a scene playing m. practice enables practice-only
-// input features.
-func NewMatchScene(m *match.Match, practice bool) *MatchScene {
-	return &MatchScene{match: m, practice: practice}
+// NewMatchScene returns a scene playing m with the given key bindings.
+// practice enables practice-only actions.
+func NewMatchScene(m *match.Match, keys *KeyBindings, practice bool) *MatchScene {
+	s := &MatchScene{match: m, keys: keys, practice: practice}
+	s.help = s.helpText()
+	return s
 }
 
 func (s *MatchScene) Update() (Scene, error) {
 	me := s.match.Machines[0]
-	if s.practice {
-		s.updateHistory(me)
-	}
-	for _, c := range typedChars() {
-		if c == machine.Enter && s.practice {
-			line, _ := me.Line()
-			s.history.add(line)
+	if me.HasLanguage() {
+		for _, c := range terminalInput() {
+			me.Type(c)
 		}
-		me.Type(c)
+	} else {
+		mods := heldModifiers()
+		for _, c := range printableChars(mods) {
+			me.Type(c)
+		}
+		for _, a := range s.keys.triggered(mods) {
+			s.do(me, a)
+		}
 	}
 	s.match.Step()
 	return nil, nil
 }
 
-func (s *MatchScene) updateHistory(me *machine.Machine) {
+// do performs a line editor action.
+func (s *MatchScene) do(me *machine.Machine, a action) {
+	if e, ok := editActions[a]; ok {
+		if e == machine.EditSubmit && s.practice {
+			line, _ := me.Line()
+			s.history.add(line)
+		}
+		me.Edit(e)
+		return
+	}
+	if !s.practice {
+		return
+	}
 	line, _ := me.Line()
-	var next string
-	var ok bool
-	switch {
-	case repeated(ebiten.KeyArrowUp):
-		next, ok = s.history.prev(line)
-	case repeated(ebiten.KeyArrowDown):
-		next, ok = s.history.next()
-	}
-	if ok {
-		me.SetLine(next)
+	switch a {
+	case actHistoryPrev:
+		if prev, ok := s.history.prev(line); ok {
+			me.SetLine(prev)
+		}
+	case actHistoryNext:
+		if next, ok := s.history.next(); ok {
+			me.SetLine(next)
+		}
+	case actExample1, actExample2, actExample3:
+		me.SetLine(examples[a-actExample1].spell)
 	}
 }
 
-// typedChars returns the characters typed since the last update, as the
-// bytes the machine expects: printable ASCII plus the control characters
-// of the editing keys. Non-ASCII input is ignored.
-func typedChars() []byte {
-	var out []byte
-	if ebiten.IsKeyPressed(ebiten.KeyControl) {
-		for k, c := range ctrlKeys {
-			if repeated(k) {
-				out = append(out, c)
-			}
+// helpText describes the examples and the keys actually bound in the
+// player's key binding file.
+func (s *MatchScene) helpText() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Type Idea and press %s. Examples:\n", s.keyNames(actSubmit))
+	for i, e := range examples {
+		key := ""
+		if s.practice {
+			key = "[" + s.keyNames(actExample1+action(i)) + "] "
 		}
-	} else {
-		for _, r := range ebiten.AppendInputChars(nil) {
-			if r >= 0x20 && r < 0x7f {
-				out = append(out, byte(r))
-			}
-		}
+		fmt.Fprintf(&b, "  %s%-48s # %s\n", key, e.spell, e.note)
 	}
-	for k, c := range editKeys {
-		if repeated(k) {
-			out = append(out, c)
-		}
+	fmt.Fprintf(&b, "Keys: start %s, end %s, left %s, right %s, kill line %s, kill word %s",
+		s.keyNames(actLineStart), s.keyNames(actLineEnd), s.keyNames(actCharLeft),
+		s.keyNames(actCharRight), s.keyNames(actKillToStart), s.keyNames(actKillWordBackward))
+	if s.practice {
+		fmt.Fprintf(&b, "\nPractice: history %s / %s", s.keyNames(actHistoryPrev), s.keyNames(actHistoryNext))
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyNumpadEnter) {
-		out = append(out, machine.Enter)
-	}
-	return out
+	return b.String()
 }
 
-// repeated reports a key press with key repeat after a short delay.
-func repeated(key ebiten.Key) bool {
-	d := inpututil.KeyPressDuration(key)
-	return d == 1 || d >= 30 && d%3 == 0
+func (s *MatchScene) keyNames(a action) string {
+	keys := s.keys.keysFor(a)
+	if len(keys) == 0 {
+		return "(unbound)"
+	}
+	return strings.Join(keys, "/")
 }
 
 func (s *MatchScene) Draw(screen *ebiten.Image) {
@@ -149,10 +142,7 @@ func (s *MatchScene) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("You  HP %d  x %.1f y %.1f  vx %.2f vy %.2f",
 		me.HP, fixed(me.X), fixed(me.Y), fixed(me.VX), fixed(me.VY)), 8, 8)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Opponent  HP %d", opp.HP), 8, 24)
-	ebitenutil.DebugPrintAt(screen, help, 8, 48)
-	if s.practice {
-		ebitenutil.DebugPrintAt(screen, practiceHelp, 8, 48+5*glyphHeight)
-	}
+	ebitenutil.DebugPrintAt(screen, s.help, 8, 48)
 
 	line, cursor := s.match.Machines[0].Line()
 	const prompt = "> "

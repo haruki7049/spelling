@@ -20,9 +20,20 @@ func newMachine(t *testing.T, src string) *Machine {
 	return m
 }
 
+// typeString types s. Without a language, \n and \r submit and \b deletes
+// backward, standing in for the keys bound to those actions.
 func typeString(m *Machine, s string) {
 	for i := range len(s) {
-		m.Type(s[i])
+		switch c := s[i]; {
+		case m.HasLanguage():
+			m.Type(c)
+		case c == '\n' || c == '\r':
+			m.Edit(EditSubmit)
+		case c == '\b':
+			m.Edit(EditDeleteBackward)
+		default:
+			m.Type(c)
+		}
 	}
 }
 
