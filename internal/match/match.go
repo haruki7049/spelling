@@ -93,6 +93,10 @@ type Match struct {
 	CoinFlip func() bool
 
 	result Result
+
+	spentThisTick [2]int32
+	spentHistory  [2][TicksPerSecond]int32
+	spentSum      [2]int32
 }
 
 // New returns a match. elfs[i] is player i's program; nil means the idle
@@ -115,7 +119,7 @@ func New(elfs [2][]byte, coinFlip func() bool) (*Match, error) {
 		}
 		mc.Map(OwnBodyBase, bodySize, &bodyDevice{match: m, body: body, payer: body, factor: 1})
 		mc.Map(OpponentBodyBase, bodySize, &bodyDevice{match: m, body: &m.World.Bodies[1-i], payer: body, factor: OpponentCostFactor})
-		mc.PayAssembler = func() bool { return pay(body, CostAssembler) }
+		mc.PayAssembler = func() bool { return m.pay(body, CostAssembler) }
 		m.Machines[i] = mc
 	}
 	return m, nil
@@ -143,8 +147,22 @@ func (m *Match) Step() {
 			b.Mana = min(b.Mana+ManaRegen, MaxMana)
 		}
 	}
+	slot := m.Tick % TicksPerSecond
+	for i := range m.spentSum {
+		old := m.spentHistory[i][slot]
+		new := m.spentThisTick[i]
+		m.spentHistory[i][slot] = new
+		m.spentSum[i] = m.spentSum[i] - old + new
+		m.spentThisTick[i] = 0
+	}
 	m.Tick++
 	m.result = m.judge()
+}
+
+// ManaSpentPerSecond returns the mana spent by player i (0 or 1) over the
+// last second (TicksPerSecond ticks).
+func (m *Match) ManaSpentPerSecond(player int) int32 {
+	return m.spentSum[player]
 }
 
 // first returns the player who goes first this tick.
@@ -168,19 +186,25 @@ func (m *Match) stepPlayer(i int) bool {
 	if b.Depleted || mc.Remaining() <= 0 {
 		return false
 	}
-	if !pay(b, InstructionCost) {
+	if !m.pay(b, InstructionCost) {
 		deplete(b, mc)
 		return false
 	}
 	return mc.Step()
 }
 
-// pay spends cost from b's mana if it can afford it.
-func pay(b *world.Body, cost int32) bool {
+// pay spends cost from b's mana if it can afford it, and records the cost
+// for that player's mana rate.
+func (m *Match) pay(b *world.Body, cost int32) bool {
 	if b.Depleted || b.Mana < cost {
 		return false
 	}
 	b.Mana -= cost
+	idx := 0
+	if b == &m.World.Bodies[1] {
+		idx = 1
+	}
+	m.spentThisTick[idx] += cost
 	return true
 }
 
@@ -259,7 +283,7 @@ func (d *bodyDevice) WriteReg(off, v uint32) {
 		return
 	}
 	cost := writeCost(off)
-	if cost == 0 || !pay(d.payer, cost*d.factor) {
+	if cost == 0 || !d.match.pay(d.payer, cost*d.factor) {
 		return
 	}
 	b := d.body
@@ -304,7 +328,7 @@ func (d *bodyDevice) writeVelocity(axis int, dst *int32, v int32) {
 	}
 	total := d.changed[axis] + delta
 	cost := (velocityCost(total) - velocityCost(d.changed[axis])) * int64(d.factor)
-	if cost > int64(math.MaxInt32) || !pay(d.payer, int32(cost)) {
+	if cost > int64(math.MaxInt32) || !d.match.pay(d.payer, int32(cost)) {
 		return
 	}
 	d.changed[axis] = total

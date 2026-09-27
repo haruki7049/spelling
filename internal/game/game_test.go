@@ -73,10 +73,10 @@ func TestLayoutReturnsFixedScreenSize(t *testing.T) {
 }
 
 func TestManaText(t *testing.T) {
-	if got := manaText(world.Body{Mana: 1234}); got != "mana 1234/600000" {
+	if got := manaText(world.Body{Mana: 1234}, 100); got != "mana 1234/600000 (spent 100/s)" {
 		t.Errorf("manaText = %q", got)
 	}
-	if got := manaText(world.Body{Depleted: true}); got != "mana DEPLETED" {
+	if got := manaText(world.Body{Depleted: true}, 0); got != "mana DEPLETED" {
 		t.Errorf("manaText = %q", got)
 	}
 }
