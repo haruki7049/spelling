@@ -13,6 +13,7 @@ import (
 
 func main() {
 	playerELF := flag.String("elf", "", "RISC-V ELF to load as your language implementation (default: none, type raw Idea)")
+	practice := flag.Bool("practice", false, "enable practice-only input features (history) that skip typing")
 	opponentELF := flag.String("opponent-elf", "", "RISC-V ELF to run as the CPU opponent (default: an idle opponent)")
 	flag.Parse()
 
@@ -38,7 +39,7 @@ func main() {
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeDisabled)
 	ebiten.SetTPS(match.TicksPerSecond)
 
-	if err := ebiten.RunGame(game.NewGame(game.NewMatchScene(m))); err != nil {
+	if err := ebiten.RunGame(game.NewGame(game.NewMatchScene(m, *practice))); err != nil {
 		log.Fatal(err)
 	}
 }

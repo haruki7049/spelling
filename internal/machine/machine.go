@@ -103,11 +103,20 @@ const (
 	MaxAssemblerSource = 4096 // bytes of source per assembler window call
 )
 
-// Characters with special meaning to the line editor.
+// Control characters with special meaning to the built-in line editor.
+// They are the usual terminal (Emacs/Bash) key bindings, so a language
+// implementation receives the same characters and can reuse or replace them.
 const (
-	Backspace = '\b'
-	Delete    = 0x7f
-	Enter     = '\n'
+	CtrlA     = 0x01 // move to the start of the line
+	CtrlB     = 0x02 // move left one character
+	CtrlD     = 0x04 // delete the character under the cursor
+	CtrlE     = 0x05 // move to the end of the line
+	CtrlF     = 0x06 // move right one character
+	Backspace = 0x08 // delete the character before the cursor
+	Enter     = 0x0a // submit the line
+	CtrlU     = 0x15 // delete from the start of the line to the cursor
+	CtrlW     = 0x17 // delete the word before the cursor
+	Delete    = 0x7f // same as Backspace, as sent by most terminals
 )
 
 // returnTrailer is appended to every typed line to return from the
@@ -139,6 +148,7 @@ type Machine struct {
 	keys        []byte
 	keyOverflow bool
 	line        []byte
+	cursor      int      // position in line, 0 to len(line)
 	pendingLine []uint32 // assembled typed line waiting for an interrupt
 
 	asmSource, asmSourceLen, asmOutput, asmOutputCap uint32
@@ -207,11 +217,6 @@ func (m *Machine) Step() bool {
 	return true
 }
 
-// Line returns the text typed into the line editor so far.
-func (m *Machine) Line() string {
-	return string(m.line)
-}
-
 func (m *Machine) takeInterrupt() {
 	if !m.intEnable {
 		return
@@ -246,20 +251,7 @@ func (m *Machine) Type(c byte) {
 		}
 		return
 	}
-	switch c {
-	case Backspace, Delete:
-		if len(m.line) > 0 {
-			m.line = m.line[:len(m.line)-1]
-		}
-	case Enter, '\r':
-		m.submitLine()
-	default:
-		if len(m.line) < KeyBufferSize {
-			m.line = append(m.line, c)
-		} else {
-			m.keyOverflow = true
-		}
-	}
+	m.edit(c)
 }
 
 // submitLine assembles the edited line. A line that fails to assemble or
@@ -267,6 +259,7 @@ func (m *Machine) Type(c byte) {
 func (m *Machine) submitLine() {
 	src := string(m.line)
 	m.line = m.line[:0]
+	m.cursor = 0
 	code, err := asm.Assemble(src+returnTrailer, ImmediateBase)
 	if err != nil || len(code) == 2 || 4*len(code) > ImmediateSize {
 		return
