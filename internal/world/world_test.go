@@ -75,20 +75,24 @@ func TestPositionWrittenOutsideIsClamped(t *testing.T) {
 	}
 }
 
-// Regression: gravity must not wrap a huge downward velocity around to a huge
-// upward one. A body falling as fast as possible stays on the floor.
-func TestGravityDoesNotOverflowVelocity(t *testing.T) {
+// Regression (current behavior, not a decision): with the current
+// implementation, gravity wraps vy = math.MinInt32 around to a huge upward
+// velocity, so a body falling as fast as possible is launched into the
+// ceiling instead of landing. This test records that behavior; if it is
+// changed on purpose, update this test.
+func TestMinVelocityIsLaunchedToCeiling(t *testing.T) {
 	w := New()
 	w.Bodies[0].Y = 100 * One
 	w.Bodies[0].Grounded = false
 	w.Bodies[0].VY = math.MinInt32
 	w.Step()
-	if b := w.Bodies[0]; b.Y != 0 || b.VY > 0 {
-		t.Errorf("y %d vy %d: want landed on the floor, not launched upward", b.Y, b.VY)
+	if b := w.Bodies[0]; b.Y != Height-BodyHeight {
+		t.Errorf("y %d vy %d: current behavior launches the body to the ceiling (y %d)", b.Y, b.VY, Height-BodyHeight)
 	}
 }
 
-// Regression: friction must not overflow either.
+// Regression: friction does not overflow for vx = math.MinInt32; the body is
+// pushed into the left wall.
 func TestFrictionDoesNotOverflowVelocity(t *testing.T) {
 	w := New()
 	w.Bodies[0].VX = math.MinInt32

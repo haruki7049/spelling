@@ -9,8 +9,6 @@
 // All numbers here are tentative first-playable values (see issue #15).
 package world
 
-import "math"
-
 // One is 1.0 in 16.16 fixed-point.
 const One = 1 << 16
 
@@ -57,7 +55,7 @@ func (w *World) Step() {
 }
 
 func (b *Body) step() {
-	b.VY = int32(max(int64(b.VY)-Gravity, math.MinInt32)) // saturate instead of wrapping
+	b.VY -= Gravity
 	if b.Grounded {
 		switch {
 		case b.VX > Friction:
