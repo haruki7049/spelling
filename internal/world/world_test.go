@@ -74,3 +74,26 @@ func TestPositionWrittenOutsideIsClamped(t *testing.T) {
 		t.Errorf("x %d y %d, want clamped into the stage", b.X, b.Y)
 	}
 }
+
+// Regression: gravity must not wrap a huge downward velocity around to a huge
+// upward one. A body falling as fast as possible stays on the floor.
+func TestGravityDoesNotOverflowVelocity(t *testing.T) {
+	w := New()
+	w.Bodies[0].Y = 100 * One
+	w.Bodies[0].Grounded = false
+	w.Bodies[0].VY = math.MinInt32
+	w.Step()
+	if b := w.Bodies[0]; b.Y != 0 || b.VY > 0 {
+		t.Errorf("y %d vy %d: want landed on the floor, not launched upward", b.Y, b.VY)
+	}
+}
+
+// Regression: friction must not overflow either.
+func TestFrictionDoesNotOverflowVelocity(t *testing.T) {
+	w := New()
+	w.Bodies[0].VX = math.MinInt32
+	w.Step()
+	if b := w.Bodies[0]; b.VX > 0 || b.X != 0 {
+		t.Errorf("x %d vx %d: want pushed into the left wall", b.X, b.VX)
+	}
+}
