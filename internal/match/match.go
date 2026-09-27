@@ -92,6 +92,11 @@ type Match struct {
 	// It is the only randomness in the game.
 	CoinFlip func() bool
 
+	// InfiniteMana disables mana depletion and costs for both players,
+	// intended for practice and spell testing. Expenditures are still
+	// tracked so real costs remain visible.
+	InfiniteMana bool
+
 	result Result
 
 	spentThisTick [2]int32
@@ -194,16 +199,21 @@ func (m *Match) stepPlayer(i int) bool {
 }
 
 // pay spends cost from b's mana if it can afford it, and records the cost
-// for that player's mana rate.
+// for that player's mana rate. With InfiniteMana, payments always succeed
+// and mana is untouched, while expenditures are still recorded.
 func (m *Match) pay(b *world.Body, cost int32) bool {
-	if b.Depleted || b.Mana < cost {
-		return false
-	}
-	b.Mana -= cost
 	idx := 0
 	if b == &m.World.Bodies[1] {
 		idx = 1
 	}
+	if m.InfiniteMana {
+		m.spentThisTick[idx] += cost
+		return true
+	}
+	if b.Depleted || b.Mana < cost {
+		return false
+	}
+	b.Mana -= cost
 	m.spentThisTick[idx] += cost
 	return true
 }
@@ -252,6 +262,9 @@ func (d *bodyDevice) ReadReg(off uint32) uint32 {
 	case BodyMaxHP:
 		return world.MaxHP
 	case BodyMana:
+		if d.match.InfiniteMana {
+			return MaxMana
+		}
 		return uint32(b.Mana)
 	case BodyMaxMana:
 		return MaxMana
