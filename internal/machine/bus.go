@@ -36,18 +36,20 @@ func (m *Machine) Map(base, size uint32, dev Device) {
 	})
 }
 
-func (m *Machine) regionAt(a uint32) *region {
-	for i := range regions {
-		if a-regions[i].base < regions[i].size {
-			return &regions[i]
-		}
-	}
-	for i := range m.devices {
-		if a-m.devices[i].base < m.devices[i].size {
-			return &m.devices[i]
+func findRegion(regs []region, a uint32) *region {
+	for i := range regs {
+		if a-regs[i].base < regs[i].size {
+			return &regs[i]
 		}
 	}
 	return nil
+}
+
+func (m *Machine) regionAt(a uint32) *region {
+	if r := findRegion(regions, a); r != nil {
+		return r
+	}
+	return findRegion(m.devices, a)
 }
 
 // memAt returns the plain memory byte at a, if any.
