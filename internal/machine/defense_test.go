@@ -364,3 +364,71 @@ func TestDefenseInterruptPriorityOverPendingLine(t *testing.T) {
 		t.Errorf("RAM[0x604] = %#x, want 0x123 after line execution", got)
 	}
 }
+
+// TestStaleFrontDefenseEventBlocksQueue records the current behavior where
+// defenseHandler only inspects the front event (m.defEvents[0]). If that front
+// event's watch is disabled or reconfigured so it no longer matches, defenseHandler
+// returns 0 and blocks subsequent events whose watches are still valid and enabled
+// from dispatching their interrupts until the front event is popped.
+//
+// NOTE: This records current behavior and is not a decided design choice.
+func TestStaleFrontDefenseEventBlocksQueue(t *testing.T) {
+	m := New(0x1000, 0)
+	m.intEnable = true
+
+	// Slot 0: watch 0x1000_2000..0x1000_2010 with handler at 0x100
+	base0 := WatchBase + 0*WatchEntrySize
+	m.Write(base0+WatchStart, 4, 0x1000_2000)
+	m.Write(base0+WatchEnd, 4, 0x1000_2010)
+	m.Write(base0+WatchFlags, 4, WatchWrite)
+	m.Write(base0+WatchHandler, 4, 0x100)
+	m.Write(base0+WatchEnabled, 4, 1)
+
+	// Slot 1: watch 0x1000_2020..0x1000_2030 with handler at 0x200
+	base1 := WatchBase + 1*WatchEntrySize
+	m.Write(base1+WatchStart, 4, 0x1000_2020)
+	m.Write(base1+WatchEnd, 4, 0x1000_2030)
+	m.Write(base1+WatchFlags, 4, WatchWrite)
+	m.Write(base1+WatchHandler, 4, 0x200)
+	m.Write(base1+WatchEnabled, 4, 1)
+
+	// Step 1: Queue event for slot 0
+	if !m.NotifyDefense(1, 0x1000_2004, 0x111) {
+		t.Fatal("failed to notify first defense event")
+	}
+	if h := m.defenseHandler(); h != 0x100 {
+		t.Fatalf("defenseHandler = %#x, want 0x100", h)
+	}
+
+	// Step 2: Disable slot 0 watch
+	m.Write(base0+WatchEnabled, 4, 0)
+
+	// Step 3: Queue event for slot 1
+	if !m.NotifyDefense(1, 0x1000_2024, 0x222) {
+		t.Fatal("failed to notify second defense event")
+	}
+
+	// Current behavior: defenseHandler returns 0 because defEvents[0] does not match
+	// an enabled watch, starving the still-valid defEvents[1].
+	if h := m.defenseHandler(); h != 0 {
+		t.Errorf("defenseHandler = %#x, want 0 (stale front event blocks queue)", h)
+	}
+
+	// takeInterrupt does not fire
+	m.takeInterrupt()
+	if m.CPU.PC != 0 {
+		t.Errorf("PC = %#x, want 0 (no interrupt taken)", m.CPU.PC)
+	}
+
+	// Popping the stale front event unblocks the queue
+	m.Write(DefenseBase+DefEventPop, 4, 1)
+	if h := m.defenseHandler(); h != 0x200 {
+		t.Errorf("defenseHandler after pop = %#x, want 0x200", h)
+	}
+
+	// Now taking the interrupt dispatches to handler 0x200
+	m.takeInterrupt()
+	if m.CPU.PC != 0x200 {
+		t.Errorf("PC after unblock = %#x, want 0x200", m.CPU.PC)
+	}
+}
