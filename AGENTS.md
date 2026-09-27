@@ -19,6 +19,7 @@ ______________________________________________________________________
   - `internal/world/`: Deterministic world: stage, bodies, and fixed-point physics.
   - `internal/match/`: A match: two machines executing alternately each tick, the world step, and the memory-mapped body regions.
   - `docs/spec.md`: The Idea machine specification (instruction set, memory map, interrupts, input, mana, ELF loading, world). Update it in the same PR as any change to that behavior; its `asm` examples are assembled by `internal/asm/spec_test.go`.
+  - `internal/repo/`: Tests about the repository itself (e.g. no Go source file is hidden by `.gitignore`).
   - `flake.nix`, `default.nix`, `shell.nix`: Nix package (`buildGoApplication` via `gomod2nix`), devShell, treefmt config, and flake-compat shims.
   - `scripts/push-artifacts-to-cachix.nu`: Nushell script used by the Cachix workflow.
   - `.github/workflows/`: Nix checks and build (`nix-ci.yml`), release binaries on `v*` tags (`go-release.yml`), Cachix pushes (`cachix-push.yml`), and stale issue/PR handling (`stale-issues-pullrequests.yml`). Dependabot (`.github/dependabot.yml`) opens pull requests for outdated `flake.lock` inputs.
