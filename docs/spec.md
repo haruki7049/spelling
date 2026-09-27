@@ -91,7 +91,7 @@ Both regions have the same layout: `0x1000_2000` is your body and `0x1000_3000` 
 | `+0x24` | Max mana | integer | read-only | — |
 | `+0x28` | Mana regeneration per tick | integer | read-only | — |
 
-Note: physics sets facing from the sign of vx on every tick, so a facing written while the body is moving is overwritten on the next step. Facing only sticks while vx is 0.
+Physics sets facing from the sign of vx, but a facing written with mana **holds for 20 ticks** *(tentative, `world.ManaHoldTicks`)* before physics takes over again. Writing it again restarts the count. This follows a general rule: a value paid for with mana beats physics for a while.
 
 Examples (the first three are the examples shown in the game):
 
@@ -276,7 +276,7 @@ Without `-elf`, the player runs the idle program from [Mana](#7-mana) at address
   1. Gravity subtracts 0.5 from vy *(tentative, `world.Gravity`)*.
   1. On the ground, friction reduces |vx| by 0.25 *(tentative, `world.Friction`)*.
   1. The body moves by its velocity. The walls, floor, and ceiling stop it and zero the velocity on that axis.
-  1. Grounded and facing are updated.
+  1. Grounded is updated. Facing follows the sign of vx, unless a facing written with mana is still holding.
 - HP starts at 100 *(tentative, `world.MaxHP`)*. Nothing reduces HP yet; damage, winning, and losing are not implemented.
 
 Known behavior at the extremes: writing vy = `-0x8000_0000` (the most negative value) currently wraps around under gravity and launches the body to the ceiling (recorded in `TestMinVelocityIsLaunchedToCeiling`).

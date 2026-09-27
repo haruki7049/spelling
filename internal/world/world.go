@@ -22,15 +22,22 @@ const (
 
 	Gravity  = One / 2 // subtracted from vy every tick
 	Friction = One / 4 // removed from |vx| every tick on the ground
+
+	// ManaHoldTicks is how long a value written with mana beats physics
+	// before physics re-derives it (see issue #15).
+	ManaHoldTicks = 20
 )
 
 // Body is a player's body.
 type Body struct {
-	X, Y     int32 // bottom-left corner
-	VX, VY   int32
-	Facing   int32 // 1 = right, -1 = left
-	Grounded bool
-	HP       int32
+	X, Y   int32 // bottom-left corner
+	VX, VY int32
+	Facing int32 // 1 = right, -1 = left
+	// FacingHold counts down the steps during which physics keeps a
+	// facing written with mana instead of deriving it from vx.
+	FacingHold int32
+	Grounded   bool
+	HP         int32
 
 	// Mana is spent by the player's CPU and writes. Depleted is set when
 	// the player could not pay for an instruction; it is permanent.
@@ -75,9 +82,12 @@ func (b *Body) step() {
 	b.X = clampAxis(b.X, b.VX, Width-BodyWidth, &b.VX)
 	b.Y = clampAxis(b.Y, b.VY, Height-BodyHeight, &b.VY)
 	b.Grounded = b.Y == 0
-	if b.VX > 0 {
+	switch {
+	case b.FacingHold > 0:
+		b.FacingHold--
+	case b.VX > 0:
 		b.Facing = 1
-	} else if b.VX < 0 {
+	case b.VX < 0:
 		b.Facing = -1
 	}
 }

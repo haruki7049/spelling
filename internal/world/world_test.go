@@ -102,9 +102,9 @@ func TestFrictionDoesNotOverflowVelocity(t *testing.T) {
 	}
 }
 
-// Regression (current behavior, not a decision): physics sets facing from
-// the sign of vx every tick, so a facing written while moving is overwritten
-// on the next step. Facing only sticks while vx is 0.
+// Without a hold, physics sets facing from the sign of vx every tick, so a
+// facing set while moving is overwritten on the next step. Facing only
+// sticks while vx is 0.
 func TestFacingFollowsVelocity(t *testing.T) {
 	w := New()
 	w.Bodies[0].VX = 4 * One
@@ -119,5 +119,24 @@ func TestFacingFollowsVelocity(t *testing.T) {
 	w.Step()
 	if f := w.Bodies[0].Facing; f != -1 {
 		t.Errorf("facing = %d, want -1 kept while vx is 0", f)
+	}
+}
+
+// A facing written with mana holds against physics for ManaHoldTicks steps.
+func TestFacingHoldBeatsPhysicsForAWhile(t *testing.T) {
+	w := New()
+	w.Bodies[0].VX = 4 * One
+	w.Bodies[0].Facing = -1
+	w.Bodies[0].FacingHold = ManaHoldTicks
+	for i := range ManaHoldTicks {
+		w.Step()
+		if f := w.Bodies[0].Facing; f != -1 {
+			t.Fatalf("step %d: facing = %d, want -1 held", i+1, f)
+		}
+	}
+	w.Bodies[0].VX = 4 * One // keep moving right after friction
+	w.Step()
+	if f := w.Bodies[0].Facing; f != 1 {
+		t.Errorf("facing = %d after the hold, want physics (1) again", f)
 	}
 }

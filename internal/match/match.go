@@ -252,5 +252,6 @@ func (d *bodyDevice) WriteReg(off, v uint32) {
 		} else {
 			b.Facing = 1
 		}
+		b.FacingHold = world.ManaHoldTicks
 	}
 }
