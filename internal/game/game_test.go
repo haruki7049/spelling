@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/haruki7049/spelling/internal/match"
 	"github.com/haruki7049/spelling/internal/world"
 )
 
@@ -89,6 +90,32 @@ func TestExamplesAreInSpec(t *testing.T) {
 	for _, e := range examples {
 		if !strings.Contains(string(spec), e.spell) {
 			t.Errorf("docs/spec.md does not contain the example %q", e.spell)
+		}
+	}
+}
+
+func TestResultText(t *testing.T) {
+	for r, want := range map[match.Result]string{
+		match.Player0Wins: "YOU WIN",
+		match.Player1Wins: "YOU LOSE",
+		match.Draw:        "DRAW",
+	} {
+		if got := resultText(r); got != want {
+			t.Errorf("resultText(%v) = %q, want %q", r, got, want)
+		}
+	}
+}
+
+func TestTimeText(t *testing.T) {
+	for tick, want := range map[uint32]string{
+		0:                          "3:00",
+		60:                         "2:59",
+		match.TimeLimitTicks - 1:   "0:01",
+		match.TimeLimitTicks:       "0:00",
+		match.TimeLimitTicks + 100: "0:00",
+	} {
+		if got := timeText(tick); got != want {
+			t.Errorf("timeText(%d) = %q, want %q", tick, got, want)
 		}
 	}
 }

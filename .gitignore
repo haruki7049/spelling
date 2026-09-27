@@ -1,8 +1,9 @@
 # nix-direnv
 .direnv/
 
-# Nix result
-result*
+# Nix result symlinks (nix build can run anywhere in the tree). Match the
+# names nix uses (result, result-dev, result-1, ...), not files like result.go.
+result
 result-*
 
 # If you prefer the allow list template instead of the deny list, see community template:

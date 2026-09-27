@@ -26,6 +26,7 @@ var (
 	backgroundColor = color.RGBA{0x1b, 0x1e, 0x2b, 0xff}
 	playerColors    = [2]color.RGBA{{0x6c, 0xb6, 0xff, 0xff}, {0xff, 0x7a, 0x7a, 0xff}}
 	cursorColor     = color.RGBA{0xff, 0xff, 0xff, 0xc0}
+	overlayColor    = color.RGBA{0x00, 0x00, 0x00, 0xa0}
 )
 
 // examples are the example spells shown in the help and inserted by the
@@ -38,8 +39,9 @@ var examples = [3]struct{ spell, note string }{
 
 // MatchScene plays a match. The keyboard drives player 0.
 type MatchScene struct {
-	match *match.Match
-	keys  *KeyBindings
+	match    *match.Match
+	newMatch func() (*match.Match, error)
+	keys     *KeyBindings
 	// practice enables actions that skip typing (history, examples), which
 	// are not allowed in real matches.
 	practice bool
@@ -47,15 +49,32 @@ type MatchScene struct {
 	help     string
 }
 
-// NewMatchScene returns a scene playing m with the given key bindings.
-// practice enables practice-only actions.
-func NewMatchScene(m *match.Match, keys *KeyBindings, practice bool) *MatchScene {
-	s := &MatchScene{match: m, keys: keys, practice: practice}
+// NewMatchScene starts a match made by newMatch, which is called again for
+// each rematch. practice enables practice-only actions.
+func NewMatchScene(newMatch func() (*match.Match, error), keys *KeyBindings, practice bool) (*MatchScene, error) {
+	m, err := newMatch()
+	if err != nil {
+		return nil, err
+	}
+	s := &MatchScene{match: m, newMatch: newMatch, keys: keys, practice: practice}
 	s.help = s.helpText()
-	return s
+	return s, nil
 }
 
 func (s *MatchScene) Update() (Scene, error) {
+	if s.match.Result() != match.Ongoing {
+		// The match is decided: input only starts a rematch.
+		for _, a := range s.keys.triggered(heldModifiers()) {
+			if a == actRematch {
+				m, err := s.newMatch()
+				if err != nil {
+					return nil, err
+				}
+				s.match = m
+			}
+		}
+		return nil, nil
+	}
 	me := s.match.Machines[0]
 	if me.HasLanguage() {
 		for _, c := range terminalInput() {
@@ -120,6 +139,9 @@ func (s *MatchScene) helpText() string {
 	if s.practice {
 		fmt.Fprintf(&b, "\nPractice: history %s / %s", s.keyNames(actHistoryPrev), s.keyNames(actHistoryNext))
 	}
+	for _, m := range s.keys.Missing() {
+		fmt.Fprintf(&b, "\nWarning: %s", m)
+	}
 	return b.String()
 }
 
@@ -150,6 +172,32 @@ func (s *MatchScene) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, prompt+line, x, y)
 	cx := float32(x + (len(prompt)+cursor)*glyphWidth)
 	vector.FillRect(screen, cx, float32(y+2), 1, glyphHeight-2, cursorColor, false)
+
+	ebitenutil.DebugPrintAt(screen, "Time "+timeText(s.match.Tick), WindowWidth-80, 8)
+
+	if r := s.match.Result(); r != match.Ongoing {
+		vector.FillRect(screen, 0, 0, WindowWidth, WindowHeight, overlayColor, false)
+		msg := resultText(r) + "\n\nPress " + s.keyNames(actRematch) + " for a rematch"
+		ebitenutil.DebugPrintAt(screen, msg, WindowWidth/2-80, WindowHeight/2-16)
+	}
+}
+
+// resultText describes a finished match from player 0's point of view.
+func resultText(r match.Result) string {
+	switch r {
+	case match.Player0Wins:
+		return "YOU WIN"
+	case match.Player1Wins:
+		return "YOU LOSE"
+	}
+	return "DRAW"
+}
+
+// timeText shows the time left before the time limit as m:ss, rounding up.
+func timeText(tick uint32) string {
+	left := max(int64(match.TimeLimitTicks)-int64(tick), 0)
+	secs := (left + match.TicksPerSecond - 1) / match.TicksPerSecond
+	return fmt.Sprintf("%d:%02d", secs/60, secs%60)
 }
 
 // toScreen converts a world point to screen coordinates (y flipped).

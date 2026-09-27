@@ -39,9 +39,11 @@ const (
 	actExample1
 	actExample2
 	actExample3
+	actRematch
 )
 
-// editorActions and practiceActions name the actions of each table.
+// editorActions, practiceActions, and matchActions name the actions of each
+// table.
 var (
 	editorActions = map[string]action{
 		"submit":             actSubmit,
@@ -60,6 +62,9 @@ var (
 		"example-1":    actExample1,
 		"example-2":    actExample2,
 		"example-3":    actExample3,
+	}
+	matchActions = map[string]action{
+		"rematch": actRematch,
 	}
 )
 
@@ -110,6 +115,7 @@ type binding struct {
 // KeyBindings are the line editor key bindings read from a config file.
 type KeyBindings struct {
 	bindings []binding
+	missing  []MissingAction
 }
 
 // DefaultKeyBindingsPath returns where the key binding file lives by
@@ -149,6 +155,7 @@ func ParseKeyBindings(data []byte) (*KeyBindings, error) {
 	var file struct {
 		Editor   map[string][]string `toml:"editor"`
 		Practice map[string][]string `toml:"practice"`
+		Match    map[string][]string `toml:"match"`
 	}
 	md, err := toml.Decode(string(data), &file)
 	if err != nil {
@@ -164,7 +171,11 @@ func ParseKeyBindings(data []byte) (*KeyBindings, error) {
 		name    string
 		entries map[string][]string
 		actions map[string]action
-	}{{"editor", file.Editor, editorActions}, {"practice", file.Practice, practiceActions}} {
+	}{
+		{"editor", file.Editor, editorActions},
+		{"practice", file.Practice, practiceActions},
+		{"match", file.Match, matchActions},
+	} {
 		names := make([]string, 0, len(table.entries))
 		for name := range table.entries {
 			names = append(names, name)
@@ -185,6 +196,11 @@ func ParseKeyBindings(data []byte) (*KeyBindings, error) {
 				}
 				seen[combo] = name
 				kb.bindings = append(kb.bindings, binding{combo: combo, action: act, name: name})
+			}
+		}
+		for _, name := range sortedKeys(table.actions) {
+			if _, ok := table.entries[name]; !ok {
+				kb.missing = append(kb.missing, MissingAction{Table: table.name, Action: name})
 			}
 		}
 	}
@@ -224,4 +240,45 @@ func (kb *KeyBindings) keysFor(a action) []string {
 		}
 	}
 	return out
+}
+
+// MissingAction is an action that a key binding file does not list, usually
+// because the file was written before the action existed. It is unbound.
+type MissingAction struct {
+	Table, Action string
+	DefaultKeys   []string // from the default key binding file
+}
+
+func (m MissingAction) String() string {
+	quoted := make([]string, len(m.DefaultKeys))
+	for i, k := range m.DefaultKeys {
+		quoted[i] = fmt.Sprintf("%q", k)
+	}
+	return fmt.Sprintf("key binding for %q is missing; add %s = [%s] under [%s]",
+		m.Action, m.Action, strings.Join(quoted, ", "), m.Table)
+}
+
+// Missing returns the actions the file does not list, with their default
+// keys. An action listed with an empty list is unbound on purpose and is
+// not missing. The game never rewrites the file; it only reports these.
+func (kb *KeyBindings) Missing() []MissingAction {
+	var defaults map[string]map[string][]string
+	if _, err := toml.Decode(string(DefaultKeyBindings), &defaults); err != nil {
+		panic(fmt.Sprintf("default key bindings: %v", err)) // covered by tests
+	}
+	out := make([]MissingAction, len(kb.missing))
+	for i, m := range kb.missing {
+		m.DefaultKeys = defaults[m.Table][m.Action]
+		out[i] = m
+	}
+	return out
+}
+
+func sortedKeys(m map[string]action) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
 }
