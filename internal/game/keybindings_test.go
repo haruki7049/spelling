@@ -131,10 +131,10 @@ func TestRematchKey(t *testing.T) {
 	}
 }
 
-// Regression (current behavior, not a decision): a key binding file written
-// before an action existed does not bind it. A file from before the rematch
-// action leaves rematch unbound, so a decided match cannot be restarted
-// until the player adds the key or deletes the file.
+// A key binding file written before an action existed does not bind it: a
+// file from before the rematch action leaves rematch unbound. The game does
+// not rewrite the file; Missing reports the action instead (see
+// TestMissingActionsAreReported).
 func TestOldFileLeavesNewActionsUnbound(t *testing.T) {
 	old, _, _ := strings.Cut(string(DefaultKeyBindings), "[match]")
 	kb, err := ParseKeyBindings([]byte(old))
