@@ -12,10 +12,12 @@ ______________________________________________________________________
 - **Target Language Version**: Go as declared by the `go` directive in `go.mod`. Go module dependencies are pinned for Nix in `gomod2nix.toml`, which must be kept in sync with `go.mod`/`go.sum`.
 - **Directory Structure**:
   - `cmd/spelling/spelling.go`: Application entry point (window setup and `ebiten.RunGame`). Run with `go run ./cmd/spelling`.
-  - `internal/game/`: Game logic (`game.go`: `Game` type and window constants, `scene.go`: scene abstraction, `example_scene.go`: sample scene).
+  - `internal/game/`: Game logic (`game.go`: `Game` type and window constants, `scene.go`: scene abstraction, `match_scene.go`: match screen and keyboard input).
   - `internal/vm/`: Virtual CPU that runs Idea, the in-game RISC-V RV32I machine code (`cpu.go`: instruction execution, `bus.go`: memory interface and RAM, `elf.go`: validating ELF loader). Game-specific behavior is tracked in issue #15.
   - `internal/asm/`: Built-in assembler that turns typed text into Idea (RISC-V assembly with common pseudo-instructions and labels).
   - `internal/machine/`: One player's machine: CPU, memory map (System, Keyboard, assembler window, immediate-code region), keyboard input, and interrupts. The register layout is documented in the package comment.
+  - `internal/world/`: Deterministic world: stage, bodies, and fixed-point physics.
+  - `internal/match/`: A match: two machines executing alternately each tick, the world step, and the memory-mapped body regions.
   - `flake.nix`, `default.nix`, `shell.nix`: Nix package (`buildGoApplication` via `gomod2nix`), devShell, treefmt config, and flake-compat shims.
   - `scripts/push-artifacts-to-cachix.nu`: Nushell script used by the Cachix workflow.
   - `.github/workflows/`: Nix checks and build (`nix-ci.yml`), release binaries on `v*` tags (`go-release.yml`), Cachix pushes (`cachix-push.yml`), and stale issue/PR handling (`stale-issues-pullrequests.yml`). Dependabot (`.github/dependabot.yml`) opens pull requests for outdated `flake.lock` inputs.

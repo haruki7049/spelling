@@ -1,5 +1,15 @@
 package machine
 
+// Device is a block of memory-mapped 32-bit registers provided from
+// outside the machine, such as a player's body in the world.
+type Device interface {
+	// ReadReg returns the register at byte offset off (a multiple of 4).
+	// It must not have side effects.
+	ReadReg(off uint32) uint32
+	// WriteReg writes the register at byte offset off (a multiple of 4).
+	WriteReg(off, v uint32)
+}
+
 type region struct {
 	base, size uint32
 	// read returns a register. With peek set, it must not have side effects.
@@ -13,10 +23,26 @@ var regions = []region{
 	{AssemblerBase, assemblerSize, (*Machine).readAssembler, (*Machine).writeAssembler},
 }
 
-func regionAt(a uint32) *region {
+// Map maps dev at [base, base+size). base and size must be multiples of 4
+// and must not overlap RAM, the built-in regions, or another device.
+func (m *Machine) Map(base, size uint32, dev Device) {
+	m.devices = append(m.devices, region{
+		base:  base,
+		size:  size,
+		read:  func(_ *Machine, off uint32, _ bool) uint32 { return dev.ReadReg(off) },
+		write: func(_ *Machine, off, v uint32) { dev.WriteReg(off, v) },
+	})
+}
+
+func (m *Machine) regionAt(a uint32) *region {
 	for i := range regions {
 		if a-regions[i].base < regions[i].size {
 			return &regions[i]
+		}
+	}
+	for i := range m.devices {
+		if a-m.devices[i].base < m.devices[i].size {
+			return &m.devices[i]
 		}
 	}
 	return nil
@@ -45,7 +71,7 @@ func (m *Machine) Read(addr uint32, size int) uint32 {
 			i++
 			continue
 		}
-		r := regionAt(a)
+		r := m.regionAt(a)
 		if r == nil {
 			i++
 			continue
@@ -70,7 +96,7 @@ func (m *Machine) Write(addr uint32, size int, value uint32) {
 			i++
 			continue
 		}
-		r := regionAt(a)
+		r := m.regionAt(a)
 		if r == nil {
 			i++
 			continue

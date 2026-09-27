@@ -143,6 +143,8 @@ type Machine struct {
 
 	asmSource, asmSourceLen, asmOutput, asmOutputCap uint32
 	asmStatus, asmOutputLen, asmErrorLine            uint32
+
+	devices []region
 }
 
 // New returns a machine with ramSize bytes of RAM whose CPU starts at entry,
@@ -172,22 +174,42 @@ func (m *Machine) LoadELF(data []byte) error {
 // between instructions. Entering and returning from an interrupt cost no
 // instructions.
 func (m *Machine) Run(budget int) {
-	for m.remaining = budget; m.remaining > 0; {
-		m.remaining--
-		m.takeInterrupt()
-		ok := m.CPU.Step()
-		switch {
-		case !ok:
-			// Illegal instruction: the CPU restarted. Leave any handler.
-			m.intEnable = true
-		case m.returning:
-			m.CPU.Regs = m.savedRegs
-			m.CPU.Regs[0] = 0
-			m.CPU.PC = m.savedPC
-			m.intEnable = true
-		}
-		m.returning = false
+	m.SetBudget(budget)
+	for m.Step() {
 	}
+}
+
+// SetBudget sets the number of instructions left in the current tick.
+func (m *Machine) SetBudget(budget int) {
+	m.remaining = budget
+}
+
+// Step executes one instruction of the current tick's budget, taking a
+// pending interrupt first. It returns false once the budget is used up.
+func (m *Machine) Step() bool {
+	if m.remaining <= 0 {
+		return false
+	}
+	m.remaining--
+	m.takeInterrupt()
+	ok := m.CPU.Step()
+	switch {
+	case !ok:
+		// Illegal instruction: the CPU restarted. Leave any handler.
+		m.intEnable = true
+	case m.returning:
+		m.CPU.Regs = m.savedRegs
+		m.CPU.Regs[0] = 0
+		m.CPU.PC = m.savedPC
+		m.intEnable = true
+	}
+	m.returning = false
+	return true
+}
+
+// Line returns the text typed into the line editor so far.
+func (m *Machine) Line() string {
+	return string(m.line)
 }
 
 func (m *Machine) takeInterrupt() {
