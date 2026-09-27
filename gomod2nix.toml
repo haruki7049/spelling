@@ -1,6 +1,10 @@
 schema = 3
 
 [mod]
+  [mod.'github.com/BurntSushi/toml']
+    version = 'v1.6.0'
+    hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
+
   [mod.'github.com/ebitengine/gomobile']
     version = 'v0.0.0-20260211053922-3d992dae95d1'
     hash = 'sha256-Mf96ynUkwBNoID0ANQJ7W0dg7gAdwbmcrzjeFUzVuBU='

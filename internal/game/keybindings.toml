@@ -1,0 +1,43 @@
+# Spelling key bindings.
+#
+# The game wrote this file because none existed. Edit it freely; it is read
+# every time the game starts. Delete it to get the defaults back.
+#
+# These bindings are used by the built-in line editor, which is active when
+# you type raw Idea (no language implementation loaded). A language
+# implementation does not use this file: it receives keys as terminal
+# characters (Ctrl+A = 0x01, arrows = ANSI escape sequences, ...) and decides
+# their meaning itself.
+#
+# Each action takes a list of keys. A key is an Ebitengine key name (case does
+# not matter), optionally prefixed with modifiers joined by "+":
+#   "enter", "home", "arrowleft", "f1", "ctrl+a", "ctrl+shift+k"
+# Modifiers: ctrl, shift, alt, meta. An empty list [] leaves an action unbound.
+# One key may not be bound to two actions.
+
+[editor]
+# Assemble and run the line.
+submit = ["enter", "numpadenter"]
+# Move the cursor to the start / end of the line.
+line-start = ["ctrl+a", "home"]
+line-end = ["ctrl+e", "end"]
+# Move the cursor one character left / right.
+char-left = ["ctrl+b", "arrowleft"]
+char-right = ["ctrl+f", "arrowright"]
+# Delete the character before / at the cursor.
+delete-backward = ["backspace"]
+delete-forward = ["ctrl+d", "delete"]
+# Delete from the start of the line to the cursor.
+kill-to-start = ["ctrl+u"]
+# Delete the word before the cursor.
+kill-word-backward = ["ctrl+w"]
+
+[practice]
+# Only active with the -practice option, because they skip typing.
+# Recall earlier lines.
+history-prev = ["arrowup"]
+history-next = ["arrowdown"]
+# Put an example spell from the help text into the line.
+example-1 = ["f1"]
+example-2 = ["f2"]
+example-3 = ["f3"]

@@ -20,9 +20,20 @@ func newMachine(t *testing.T, src string) *Machine {
 	return m
 }
 
+// typeString types s. Without a language, \n and \r submit and \b deletes
+// backward, standing in for the keys bound to those actions.
 func typeString(m *Machine, s string) {
 	for i := range len(s) {
-		m.Type(s[i])
+		switch c := s[i]; {
+		case m.HasLanguage():
+			m.Type(c)
+		case c == '\n' || c == '\r':
+			m.Edit(EditSubmit)
+		case c == '\b':
+			m.Edit(EditDeleteBackward)
+		default:
+			m.Type(c)
+		}
 	}
 }
 
@@ -279,7 +290,12 @@ func FuzzMachine(f *testing.F) {
 		m := New(0x1000, 0)
 		copy(m.RAM, ram)
 		for i := range len(input) {
-			m.Type(input[i])
+			// Bytes below 0x10 stand for line editor actions.
+			if c := input[i]; c < 0x10 {
+				m.Edit(EditAction(c % 9))
+			} else {
+				m.Type(c)
+			}
 			m.Run(8)
 		}
 		m.Run(64)

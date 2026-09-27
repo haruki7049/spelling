@@ -36,8 +36,9 @@
 //
 // Keyboard: with a handler registered, typed characters go to the keyboard
 // buffer and an interrupt is pending while it is not empty. Without one,
-// characters go to a line editor; Enter assembles the line with the
-// built-in assembler and runs it as an interrupt from the immediate-code
+// printable characters go to a line editor driven by Edit actions (the
+// game binds keys to them from a config file); submitting assembles the
+// line with the built-in assembler and runs it as an interrupt from the immediate-code
 // region, followed by a return.
 package machine
 
@@ -103,13 +104,6 @@ const (
 	MaxAssemblerSource = 4096 // bytes of source per assembler window call
 )
 
-// Characters with special meaning to the line editor.
-const (
-	Backspace = '\b'
-	Delete    = 0x7f
-	Enter     = '\n'
-)
-
 // returnTrailer is appended to every typed line to return from the
 // interrupt after it runs.
 const returnTrailer = "\nlui t0, 0x10000; sw zero, 0x1c(t0)"
@@ -139,10 +133,13 @@ type Machine struct {
 	keys        []byte
 	keyOverflow bool
 	line        []byte
+	cursor      int      // position in line, 0 to len(line)
 	pendingLine []uint32 // assembled typed line waiting for an interrupt
 
 	asmSource, asmSourceLen, asmOutput, asmOutputCap uint32
 	asmStatus, asmOutputLen, asmErrorLine            uint32
+
+	devices []region
 }
 
 // New returns a machine with ramSize bytes of RAM whose CPU starts at entry,
@@ -172,22 +169,37 @@ func (m *Machine) LoadELF(data []byte) error {
 // between instructions. Entering and returning from an interrupt cost no
 // instructions.
 func (m *Machine) Run(budget int) {
-	for m.remaining = budget; m.remaining > 0; {
-		m.remaining--
-		m.takeInterrupt()
-		ok := m.CPU.Step()
-		switch {
-		case !ok:
-			// Illegal instruction: the CPU restarted. Leave any handler.
-			m.intEnable = true
-		case m.returning:
-			m.CPU.Regs = m.savedRegs
-			m.CPU.Regs[0] = 0
-			m.CPU.PC = m.savedPC
-			m.intEnable = true
-		}
-		m.returning = false
+	m.SetBudget(budget)
+	for m.Step() {
 	}
+}
+
+// SetBudget sets the number of instructions left in the current tick.
+func (m *Machine) SetBudget(budget int) {
+	m.remaining = budget
+}
+
+// Step executes one instruction of the current tick's budget, taking a
+// pending interrupt first. It returns false once the budget is used up.
+func (m *Machine) Step() bool {
+	if m.remaining <= 0 {
+		return false
+	}
+	m.remaining--
+	m.takeInterrupt()
+	ok := m.CPU.Step()
+	switch {
+	case !ok:
+		// Illegal instruction: the CPU restarted. Leave any handler.
+		m.intEnable = true
+	case m.returning:
+		m.CPU.Regs = m.savedRegs
+		m.CPU.Regs[0] = 0
+		m.CPU.PC = m.savedPC
+		m.intEnable = true
+	}
+	m.returning = false
+	return true
 }
 
 func (m *Machine) takeInterrupt() {
@@ -214,7 +226,10 @@ func (m *Machine) takeInterrupt() {
 	m.CPU.PC = target
 }
 
-// Type delivers one typed character to the machine.
+// Type delivers one typed character to the machine. With a keyboard
+// handler registered, every character (including control characters) goes
+// to the keyboard buffer. Otherwise printable characters are inserted into
+// the line editor, and editing is done with Edit.
 func (m *Machine) Type(c byte) {
 	if m.keyHandler != 0 {
 		if len(m.keys) < KeyBufferSize {
@@ -224,20 +239,7 @@ func (m *Machine) Type(c byte) {
 		}
 		return
 	}
-	switch c {
-	case Backspace, Delete:
-		if len(m.line) > 0 {
-			m.line = m.line[:len(m.line)-1]
-		}
-	case Enter, '\r':
-		m.submitLine()
-	default:
-		if len(m.line) < KeyBufferSize {
-			m.line = append(m.line, c)
-		} else {
-			m.keyOverflow = true
-		}
-	}
+	m.insert(c)
 }
 
 // submitLine assembles the edited line. A line that fails to assemble or
@@ -245,6 +247,7 @@ func (m *Machine) Type(c byte) {
 func (m *Machine) submitLine() {
 	src := string(m.line)
 	m.line = m.line[:0]
+	m.cursor = 0
 	code, err := asm.Assemble(src+returnTrailer, ImmediateBase)
 	if err != nil || len(code) == 2 || 4*len(code) > ImmediateSize {
 		return
