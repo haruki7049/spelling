@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 ## 2. Strict Safety & Operational Rules (Always Enforced)
 
-- **NEVER AUTO-MERGE TO MAIN**: AI agents **MUST NEVER** merge PRs, execute `git merge`, or directly push commits to the `main` branch autonomously.
+- **NEVER MERGE PULL REQUESTS**: AI agents **MUST NEVER** merge PRs (including enabling auto-merge with `gh pr merge --auto`), execute `git merge` into `main`, or directly push commits to the `main` branch autonomously.
 - **NEVER PROPOSE COMMITS OR PUSHES UNPROMPTED**: AI agents **MUST NEVER** prompt the user to commit or push, nor propose commit messages unprompted. When instructed by the user or when creating/updating pull requests on topic branches, agents may execute `git commit` and `git push` directly without seeking confirmation.
 - **Mandatory Human Approval**: AI agents may create branches, create commits, push topic branches, propose PRs, format code, and run test suites, but the final action of merging changes into `main` rests strictly with the human maintainer.
 - **Verification Before Submitting**: All changes must pass `treefmt --fail-on-change`, `go build ./...`, and `go test ./...`.
@@ -39,6 +39,7 @@ ______________________________________________________________________
 - **Small PRs**: Split work into small, focused pull requests on topic branches, each reviewable on its own. When asked what can be implemented, list what the decided spec allows now, then implement it as small PRs.
 - **English-Only Documentation**: All repository documentation, agent skills, code comments, commit messages, and PR descriptions must be written strictly in English.
 - **Explicit Milestone Assignment Only**: AI agents **MUST NEVER** automatically attach or set GitHub Milestones on Pull Requests or Issues unless explicitly requested or instructed by the user.
+- **No Session Links**: Do not include AI session URLs or other internal session identifiers (e.g. a `Claude-Session:` trailer) in commit messages, PR descriptions, issues, or comments. Such links are not accessible from outside the private session, so publishing them in this public repository serves no purpose and only confuses readers. A `Co-Authored-By:` trailer is fine. Exception: if the user explicitly states the session is public and instructs the agent to include its URL, doing so is allowed.
 - **Fetch Before Branching**: Always run `git fetch origin` before creating a topic branch for a PR and before judging the state of a remote branch (what `main` contains, whether a PR is merged). Branch from the fetched `origin/main`, not a possibly stale local `main`.
 - **Announce the Game Window**: Before running anything that opens the game window (`go run ./cmd/spelling`, screenshot harnesses), tell the user in one line: that a window will open (it takes focus and keyboard input), for how long, and how it will be checked (e.g. capturing the game's own frame to a PNG). Permission is not required.
 
