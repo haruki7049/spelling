@@ -1,10 +1,11 @@
 # nix-direnv
 .direnv/
 
-# Nix result symlinks (nix build can run anywhere in the tree). Match the
-# names nix uses (result, result-dev, result-1, ...), not files like result.go.
-result
+# Nix result
+result*
 result-*
+# Not go files
+!result*.go
 
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
@@ -16,7 +17,7 @@ result-*
 *.so
 *.dylib
 *.wasm
-/spelling
+/target/
 
 # Test binary, built with `go test -c`
 *.test
@@ -24,6 +25,7 @@ result-*
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*
+!/scripts/coverage.nu
 *.coverprofile
 profile.cov
 
