@@ -1,9 +1,15 @@
 version: 2
 updates:
-  # Opens one pull request per outdated flake input in flake.lock.
+  # Nix flakes
   - package-ecosystem: "nix"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
     commit-message:
       prefix: "build"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
