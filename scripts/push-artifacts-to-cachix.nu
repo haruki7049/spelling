@@ -32,14 +32,5 @@ nix flake archive --json
 print "Pushing runtime closure..."
 print
 
-# x86_64-linux platform configurations
-if ((version | get build_target | find linux | is-not-empty) and (version | get build_target | find x86_64 | is-not-empty)) {
-  nix build --no-link --print-out-paths '.#nixosConfigurations.tuf-chan.config.system.build.toplevel'
-    | push-or $ability_cachix_auth_token $is_pull_request
-
-  nix build --no-link --print-out-paths '.#nixosConfigurations.pana-chama.config.system.build.toplevel'
-    | push-or $ability_cachix_auth_token $is_pull_request
-} else if ((version | get build_target | find darwin | is-not-empty) and (version | get build_target | find aarch64 | is-not-empty)) {
-  nix build --no-link --print-out-paths '.#darwinConfigurations.enmac.config.system.build.toplevel'
-    | push-or $ability_cachix_auth_token $is_pull_request
-}
+nix build --no-link --print-out-paths '.#spelling'
+  | push-or $ability_cachix_auth_token $is_pull_request
