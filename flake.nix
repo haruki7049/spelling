@@ -3,6 +3,7 @@
     extra-substituters = [ "https://haruki7049.cachix.org" ];
     extra-trusted-public-keys = [
       "haruki7049.cachix.org-1:Hd6hnIsYnpDDNhg/ZX06QkLBaCgDoatgNPqrFnUqhMk="
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
 
